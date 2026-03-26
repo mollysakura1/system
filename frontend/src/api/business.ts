@@ -20,3 +20,7 @@ export function getActivitiesApi() {
 export function getCouponsApi() {
   return request.get<never, { data: PaginatedResult<Record<string, string | number>> }>('/coupons');
 }
+
+export function getChannelsApi() {
+  return request.get<never, { data: PaginatedResult<Record<string, string | number>> }>('/channels');
+}

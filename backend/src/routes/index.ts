@@ -3,7 +3,7 @@ import { Router } from 'express';
 import authRoutes from './auth.js';
 import { authMiddleware, type AuthRequest } from '../middlewares/auth.js';
 import { ok } from '../utils/response.js';
-import { activities, aiPrompts, coupons, getUserById, logs, merchants, orders, products, roles, siteMessages, users, credentialMap } from '../mock/data.js';
+import { activities, aiPrompts, channels, coupons, getUserById, logs, merchants, orders, products, roles, siteMessages, users, credentialMap } from '../mock/data.js';
 import { getMenusByRole, getPermissionCodes } from '../services/menu.service.js';
 import { getCharts, getOverview } from '../services/dashboard.service.js';
 import { buildAiAnalysis } from '../services/ai.service.js';
@@ -224,6 +224,7 @@ router.get('/merchants', authMiddleware, (_, res) => res.json(ok({ list: merchan
 router.get('/products', authMiddleware, (_, res) => res.json(ok({ list: products, total: products.length })));
 router.get('/activities', authMiddleware, (_, res) => res.json(ok({ list: activities, total: activities.length })));
 router.get('/coupons', authMiddleware, (_, res) => res.json(ok({ list: coupons, total: coupons.length })));
+router.get('/channels', authMiddleware, (_, res) => res.json(ok({ list: channels, total: channels.length })));
 router.get('/logs', authMiddleware, (_, res) => res.json(ok({ list: logs, total: logs.length })));
 router.get('/ai/prompts', authMiddleware, (_, res) => res.json(ok(aiPrompts)));
 

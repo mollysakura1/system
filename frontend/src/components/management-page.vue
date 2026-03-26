@@ -74,29 +74,29 @@ import type { FormField, TableColumn } from '../types/components';
 type RowData = Record<string, string | number | boolean>;
 type ApiType = 'users' | 'logs' | BusinessEntityType;
 
-const CHANNEL_PRIVATE = '\u79c1\u57df';
-const CHANNEL_DOUYIN = '\u6296\u97f3';
-const CHANNEL_MEITUAN = '\u7f8e\u56e2';
-const STATUS_ENABLED = '\u542f\u7528';
-const STATUS_DISABLED = '\u505c\u7528';
-const CATEGORY_BEVERAGE = '\u996e\u54c1';
-const CATEGORY_LIGHT_MEAL = '\u8f7b\u98df';
-const CATEGORY_COFFEE_BEANS = '\u5496\u5561\u8c46';
-const STATUS_LISTED = '\u4e0a\u67b6';
-const STATUS_UNLISTED = '\u4e0b\u67b6';
-const ORDER_PENDING_PAY = '\u5f85\u652f\u4ed8';
-const ORDER_PAID = '\u5df2\u652f\u4ed8';
-const ORDER_COMPLETED = '\u5df2\u5b8c\u6210';
-const ORDER_REFUNDED = '\u5df2\u9000\u6b3e';
-const ACTIVITY_FULL_REDUCTION = '\u6ee1\u51cf';
-const ACTIVITY_LIVESTREAM = '\u76f4\u64ad';
-const ACTIVITY_COUPON = '\u4f18\u60e0\u5238';
-const ACTIVITY_PENDING_RELEASE = '\u5f85\u53d1\u5e03';
-const ACTIVITY_ONGOING = '\u8fdb\u884c\u4e2d';
-const ACTIVITY_ENDED = '\u5df2\u7ed3\u675f';
-const COUPON_PENDING_DELIVERY = '\u5f85\u6295\u653e';
-const COUPON_DELIVERING = '\u6295\u653e\u4e2d';
-const COUPON_DEACTIVATED = '\u5df2\u505c\u7528';
+const CHANNEL_PRIVATE = '私域';
+const CHANNEL_DOUYIN = '抖音';
+const CHANNEL_MEITUAN = '美团';
+const STATUS_ENABLED = '启用';
+const STATUS_DISABLED = '停用';
+const CATEGORY_BEVERAGE = '饮品';
+const CATEGORY_LIGHT_MEAL = '轻食';
+const CATEGORY_COFFEE_BEANS = '咖啡豆';
+const STATUS_LISTED = '上架';
+const STATUS_UNLISTED = '下架';
+const ORDER_PENDING_PAY = '待支付';
+const ORDER_PAID = '已支付';
+const ORDER_COMPLETED = '已完成';
+const ORDER_REFUNDED = '已退款';
+const ACTIVITY_FULL_REDUCTION = '满减';
+const ACTIVITY_LIVESTREAM = '直播';
+const ACTIVITY_COUPON = '优惠券';
+const ACTIVITY_PENDING_RELEASE = '待发布';
+const ACTIVITY_ONGOING = '进行中';
+const ACTIVITY_ENDED = '已结束';
+const COUPON_PENDING_DELIVERY = '待投放';
+const COUPON_DELIVERING = '投放中';
+const COUPON_DEACTIVATED = '已停用';
 
 const props = withDefaults(
   defineProps<{
@@ -136,7 +136,7 @@ const systemApiMap = {
   logs: getLogsApi
 };
 
-const businessTypes: BusinessEntityType[] = ['merchants', 'products', 'orders', 'activities', 'coupons'];
+const businessTypes: BusinessEntityType[] = ['merchants', 'products', 'orders', 'activities', 'coupons', 'channels'];
 
 function isBusinessType(type: ApiType): type is BusinessEntityType {
   return businessTypes.includes(type as BusinessEntityType);
@@ -145,11 +145,7 @@ function isBusinessType(type: ApiType): type is BusinessEntityType {
 const optionMap = computed<Partial<Record<ApiType, Record<string, Array<{ label: string; value: string | number }>>>>>(
   () => ({
     merchants: {
-      channel: [
-        { label: t('business.options.channelPrivate'), value: CHANNEL_PRIVATE },
-        { label: t('business.options.channelDouyin'), value: CHANNEL_DOUYIN },
-        { label: t('business.options.channelMeituan'), value: CHANNEL_MEITUAN }
-      ],
+      channel: [],
       status: [
         { label: t('business.options.enabled'), value: STATUS_ENABLED },
         { label: t('business.options.disabled'), value: STATUS_DISABLED }
@@ -174,11 +170,7 @@ const optionMap = computed<Partial<Record<ApiType, Record<string, Array<{ label:
         { label: t('business.options.completed'), value: ORDER_COMPLETED },
         { label: t('business.options.refunded'), value: ORDER_REFUNDED }
       ],
-      channel: [
-        { label: t('business.options.channelPrivate'), value: CHANNEL_PRIVATE },
-        { label: t('business.options.channelDouyin'), value: CHANNEL_DOUYIN },
-        { label: t('business.options.channelMeituan'), value: CHANNEL_MEITUAN }
-      ]
+      channel: []
     },
     activities: {
       merchantName: [],
@@ -199,6 +191,17 @@ const optionMap = computed<Partial<Record<ApiType, Record<string, Array<{ label:
         { label: t('business.options.delivering'), value: COUPON_DELIVERING },
         { label: t('business.options.deactivated'), value: COUPON_DEACTIVATED }
       ]
+    },
+    channels: {
+      type: [
+        { label: t('business.options.channelPrivate'), value: CHANNEL_PRIVATE },
+        { label: t('business.options.channelDouyin'), value: CHANNEL_DOUYIN },
+        { label: t('business.options.channelMeituan'), value: CHANNEL_MEITUAN }
+      ],
+      status: [
+        { label: t('business.options.enabled'), value: STATUS_ENABLED },
+        { label: t('business.options.disabled'), value: STATUS_DISABLED }
+      ]
     }
   })
 );
@@ -213,7 +216,9 @@ const formFields = computed<FormField[]>(() =>
       const dynamicOptions =
         (props.apiType === 'orders' || props.apiType === 'activities') && column.prop === 'merchantName'
           ? businessStore.merchantOptions
-          : optionMap.value[props.apiType]?.[column.prop];
+          : (props.apiType === 'merchants' || props.apiType === 'orders') && column.prop === 'channel'
+            ? businessStore.channelOptions
+            : optionMap.value[props.apiType]?.[column.prop];
 
       return {
         prop: column.prop,
@@ -255,7 +260,9 @@ function getDefaultValue(prop: string) {
   const options =
     (props.apiType === 'orders' || props.apiType === 'activities') && prop === 'merchantName'
       ? businessStore.merchantOptions
-      : optionMap.value[props.apiType]?.[prop];
+      : (props.apiType === 'merchants' || props.apiType === 'orders') && prop === 'channel'
+        ? businessStore.channelOptions
+        : optionMap.value[props.apiType]?.[prop];
 
   if (options?.length) return options[0].value;
   if (prop === 'amount' || prop === 'budget' || prop === 'stock' || prop === 'used' || prop === 'sales' || prop === 'orders') return 0;
@@ -268,6 +275,9 @@ async function fetchData() {
     if (isBusinessType(props.apiType)) {
       if (props.apiType === 'orders' || props.apiType === 'activities') {
         await businessStore.ensureLoaded('merchants');
+      }
+      if (props.apiType === 'merchants' || props.apiType === 'orders' || props.apiType === 'channels') {
+        await businessStore.ensureLoaded('channels');
       }
       await businessStore.ensureLoaded(props.apiType);
       rows.value = [...businessStore.getRows(props.apiType)];
@@ -315,6 +325,9 @@ async function handleCreate() {
   currentRow.value = null;
   if (props.apiType === 'orders' || props.apiType === 'activities') {
     await businessStore.ensureLoaded('merchants');
+  }
+  if (props.apiType === 'merchants' || props.apiType === 'orders') {
+    await businessStore.ensureLoaded('channels');
   }
   syncForm(null);
   modalVisible.value = true;

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { BUSINESS_CACHE_KEY } from '../../config';
-import { getActivitiesApi, getCouponsApi, getMerchantsApi, getOrdersApi, getProductsApi } from '../../api/business';
+import { getActivitiesApi, getChannelsApi, getCouponsApi, getMerchantsApi, getOrdersApi, getProductsApi } from '../../api/business';
 import { getStorage, setStorage } from '../../utils/storage';
 import type { BusinessEntityType } from '../../types';
 
@@ -12,6 +12,7 @@ interface BusinessState {
   orders: BusinessRow[];
   activities: BusinessRow[];
   coupons: BusinessRow[];
+  channels: BusinessRow[];
   initialized: Partial<Record<BusinessEntityType, boolean>>;
 }
 
@@ -20,7 +21,8 @@ const fetcherMap = {
   products: getProductsApi,
   orders: getOrdersApi,
   activities: getActivitiesApi,
-  coupons: getCouponsApi
+  coupons: getCouponsApi,
+  channels: getChannelsApi
 };
 
 function createEmptyState(): BusinessState {
@@ -30,18 +32,25 @@ function createEmptyState(): BusinessState {
     orders: [],
     activities: [],
     coupons: [],
+    channels: [],
     initialized: {}
   };
 }
 
 export const useBusinessStore = defineStore('business', {
   state: (): BusinessState => {
-    const cached = getStorage<BusinessState | null>(BUSINESS_CACHE_KEY, null);
-    return cached ? { ...cached, initialized: {} } : createEmptyState();
+    const cached = getStorage<Partial<BusinessState> | null>(BUSINESS_CACHE_KEY, null);
+    return cached ? { ...createEmptyState(), ...cached, initialized: {} } : createEmptyState();
   },
   getters: {
     merchantOptions(state) {
       return state.merchants.map((item) => ({
+        label: String(item.name ?? ''),
+        value: String(item.name ?? '')
+      }));
+    },
+    channelOptions(state) {
+      return state.channels.map((item) => ({
         label: String(item.name ?? ''),
         value: String(item.name ?? '')
       }));
@@ -54,15 +63,12 @@ export const useBusinessStore = defineStore('business', {
         products: this.products,
         orders: this.orders,
         activities: this.activities,
-        coupons: this.coupons
+        coupons: this.coupons,
+        channels: this.channels
       });
     },
     getRows(type: BusinessEntityType) {
       return this[type];
-    },
-    setRows(type: BusinessEntityType, rows: BusinessRow[]) {
-      this[type] = rows;
-      this.persist();
     },
     async ensureLoaded(type: BusinessEntityType) {
       if (this.initialized[type]) return;

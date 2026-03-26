@@ -104,4 +104,4 @@ export interface ChatSession {
   updatedAt: string;
 }
 
-export type BusinessEntityType = 'merchants' | 'products' | 'orders' | 'activities' | 'coupons';
+export type BusinessEntityType = 'merchants' | 'products' | 'orders' | 'activities' | 'coupons' | 'channels';

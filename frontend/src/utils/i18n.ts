@@ -13,6 +13,7 @@ const routeTitleMap: Record<string, string> = {
   '/system/logs': 'routes.logs',
   '/business': 'routes.business',
   '/business/merchants': 'routes.merchants',
+  '/business/channels': '',
   '/business/products': 'routes.products',
   '/business/orders': 'routes.orders',
   '/business/activities': 'routes.activities',
@@ -30,6 +31,7 @@ const menuPathTitleMap: Record<string, string> = {
   '/system/logs': 'routes.logs',
   '/business': 'routes.business',
   '/business/merchants': 'routes.merchants',
+  '/business/channels': '',
   '/business/products': 'routes.products',
   '/business/orders': 'routes.orders',
   '/business/activities': 'routes.activities',
@@ -46,10 +48,16 @@ export function translateRouteTitle(path: string, fallback = '') {
   if (path === '/profile-settings') {
     return i18n.global.locale.value === 'en' ? 'Profile Settings' : '个人设置';
   }
+  if (path === '/business/channels') {
+    return i18n.global.locale.value === 'en' ? 'Channel Management' : '渠道管理';
+  }
   return key ? i18n.global.t(key) : fallback;
 }
 
 export function translateMenuTitle(path: string, fallback = '') {
+  if (path === '/business/channels') {
+    return i18n.global.locale.value === 'en' ? 'Channel Management' : '渠道管理';
+  }
   const key = menuPathTitleMap[path];
   return key ? i18n.global.t(key) : fallback;
 }

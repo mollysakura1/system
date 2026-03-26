@@ -142,6 +142,14 @@ export const menus: AppMenu[] = [
         roles: ['super-admin', 'operator', 'analyst']
       },
       {
+        id: 'channels',
+        name: 'Channels',
+        path: '/business/channels',
+        component: 'business/channels',
+        title: 'Channels',
+        roles: ['super-admin', 'operator', 'analyst', 'merchant']
+      },
+      {
         id: 'products',
         name: 'Products',
         path: '/business/products',
@@ -196,16 +204,22 @@ export const roles = [
   { id: 'r4', name: 'Merchant', code: 'merchant', description: 'Responsible for merchant-side business operations' }
 ];
 
+export const channels = [
+  { id: 'ch1', name: '私域', type: '私域', status: '启用', owner: 'Ava Li', remark: '企业微信与社群转化渠道' },
+  { id: 'ch2', name: '抖音', type: '抖音', status: '启用', owner: 'Leo Wang', remark: '短视频与直播投放渠道' },
+  { id: 'ch3', name: '美团', type: '美团', status: '启用', owner: 'Molly Chen', remark: '本地生活平台渠道' }
+];
+
 export const merchants = [
-  { id: 'm1', merchantCode: 'MCH2026032601', name: 'Stellar Coffee', channel: 'Private Traffic', owner: 'Ava Li', status: 'Enabled', gmv: 302199, orders: 1542, conversionRate: 6.2 },
-  { id: 'm2', merchantCode: 'MCH2026032602', name: 'South Tea House', channel: 'Douyin', owner: 'Leo Wang', status: 'Enabled', gmv: 199830, orders: 1284, conversionRate: 5.1 },
-  { id: 'm3', merchantCode: 'MCH2026032603', name: 'Urban Light Meal', channel: 'Meituan', owner: 'Molly Chen', status: 'Disabled', gmv: 120900, orders: 642, conversionRate: 3.5 }
+  { id: 'm1', merchantCode: 'MCH2026032601', name: 'Stellar Coffee', channel: '私域', owner: 'Ava Li', status: '启用', gmv: 302199, orders: 1542, conversionRate: 6.2 },
+  { id: 'm2', merchantCode: 'MCH2026032602', name: 'South Tea House', channel: '抖音', owner: 'Leo Wang', status: '启用', gmv: 199830, orders: 1284, conversionRate: 5.1 },
+  { id: 'm3', merchantCode: 'MCH2026032603', name: 'Urban Light Meal', channel: '美团', owner: 'Molly Chen', status: '停用', gmv: 120900, orders: 642, conversionRate: 3.5 }
 ];
 
 export const products = [
-  { id: 'p1', productCode: 'PRD2026032601', name: 'Coconut Latte', merchantId: 'm1', category: 'Beverage', price: 26, stock: 122, sales: 8421, status: 'Listed' },
-  { id: 'p2', productCode: 'PRD2026032602', name: 'Cold Americano', merchantId: 'm1', category: 'Beverage', price: 19, stock: 233, sales: 7232, status: 'Listed' },
-  { id: 'p3', productCode: 'PRD2026032603', name: 'Berry Yogurt Bowl', merchantId: 'm3', category: 'Light Meal', price: 28, stock: 45, sales: 2311, status: 'Unlisted' }
+  { id: 'p1', productCode: 'PRD2026032601', name: 'Coconut Latte', merchantId: 'm1', category: '饮品', price: 26, stock: 122, sales: 8421, status: '上架' },
+  { id: 'p2', productCode: 'PRD2026032602', name: 'Cold Americano', merchantId: 'm1', category: '饮品', price: 19, stock: 233, sales: 7232, status: '上架' },
+  { id: 'p3', productCode: 'PRD2026032603', name: 'Berry Yogurt Bowl', merchantId: 'm3', category: '轻食', price: 28, stock: 45, sales: 2311, status: '下架' }
 ];
 
 export const orders = Array.from({ length: 24 }).map((_, index) => ({
@@ -213,21 +227,21 @@ export const orders = Array.from({ length: 24 }).map((_, index) => ({
   orderNo: `ORD202603${String(1000 + index)}`,
   merchantName: merchants[index % merchants.length].name,
   amount: 68 + index * 7,
-  status: ['Pending Payment', 'Paid', 'Completed', 'Refunded'][index % 4],
-  channel: ['Private Traffic', 'Douyin', 'Meituan'][index % 3],
+  status: ['待支付', '已支付', '已完成', '已退款'][index % 4],
+  channel: merchants[index % merchants.length].channel,
   createdAt: dayjs().subtract(index, 'day').format('YYYY-MM-DD HH:mm:ss')
 }));
 
 export const activities = [
-  { id: 'a1', activityCode: 'ACT2026032601', name: 'Spring User Growth', type: 'Full Reduction', status: 'Ongoing', budget: 50000, roi: 2.8, merchantName: 'Stellar Coffee' },
-  { id: 'a2', activityCode: 'ACT2026032602', name: 'Member Day Livestream', type: 'Livestream', status: 'Ended', budget: 28000, roi: 3.6, merchantName: 'South Tea House' },
-  { id: 'a3', activityCode: 'ACT2026032603', name: 'New Product Coupon Drop', type: 'Coupon', status: 'Pending Release', budget: 16000, roi: 0, merchantName: 'Urban Light Meal' }
+  { id: 'a1', activityCode: 'ACT2026032601', name: 'Spring User Growth', type: '满减', status: '进行中', budget: 50000, roi: 2.8, merchantName: 'Stellar Coffee' },
+  { id: 'a2', activityCode: 'ACT2026032602', name: 'Member Day Livestream', type: '直播', status: '已结束', budget: 28000, roi: 3.6, merchantName: 'South Tea House' },
+  { id: 'a3', activityCode: 'ACT2026032603', name: 'New Product Coupon Drop', type: '优惠券', status: '待发布', budget: 16000, roi: 0, merchantName: 'Urban Light Meal' }
 ];
 
 export const coupons = [
-  { id: 'c1', couponCode: 'CPN2026032601', name: '20-5 New User Coupon', stock: 1000, used: 654, status: 'Delivering' },
-  { id: 'c2', couponCode: 'CPN2026032602', name: '39-10 Return Coupon', stock: 800, used: 485, status: 'Delivering' },
-  { id: 'c3', couponCode: 'CPN2026032603', name: '59-12 Holiday Coupon', stock: 1500, used: 0, status: 'Pending Delivery' }
+  { id: 'c1', couponCode: 'CPN2026032601', name: '20-5 New User Coupon', stock: 1000, used: 654, status: '投放中' },
+  { id: 'c2', couponCode: 'CPN2026032602', name: '39-10 Return Coupon', stock: 800, used: 485, status: '投放中' },
+  { id: 'c3', couponCode: 'CPN2026032603', name: '59-12 Holiday Coupon', stock: 1500, used: 0, status: '待投放' }
 ];
 
 export const logs = Array.from({ length: 20 }).map((_, index) => ({

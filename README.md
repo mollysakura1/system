@@ -95,7 +95,7 @@ npm run build
 
 前端默认地址：`http://localhost:5173`
 
-后端默认地址：`http://localhost:3000`
+后端默认地址：`http://localhost:3001`
 
 ## 演示账号
 
