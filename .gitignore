@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+.DS_Store
+.idea
+.vscode
+*.local
+frontend/node_modules
+backend/node_modules
+frontend/dist
+backend/dist
