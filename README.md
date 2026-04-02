@@ -1,10 +1,29 @@
 # AI 智能运营管理平台
 
-一个适合前端实习简历展示和面试讲解的企业级中后台项目，采用前后端分离双目录结构，覆盖登录鉴权、RBAC 权限、动态路由、数据可视化、AI 助手和 SSE 流式输出等核心能力。
+一个面向前端实习简历展示、项目答辩和中后台面试讲解的企业级前后端分离项目。项目以“AI 驱动的 SaaS 商家运营管理平台”为定位，覆盖登录鉴权、RBAC 权限系统、动态路由、经营看板、业务中心、站内信、个人设置、国际化，以及基于阿里云百炼的真实流式 AI 助手能力。
 
-## 技术栈
+## 一、项目概览
 
-### 前端
+本项目采用前后端双目录结构：
+
+- 前端：`Vue 3 + TypeScript + Vite + Pinia + Vue Router + Element Plus + Axios + ECharts`
+- 后端：`Node.js + Express + TypeScript + JWT + SSE`
+- AI 能力：后端接入阿里云百炼兼容接口，前端继续使用现有 SSE 协议进行流式消费
+- 数据层：以内存数据和本地持久化为主，优先保证项目可运行、结构清晰、功能完整
+
+项目强调以下能力展示：
+
+- 企业级中后台架构设计能力
+- RBAC 权限模型与动态路由落地能力
+- 高复用通用组件封装能力
+- 数据可视化与经营分析能力
+- 工程化与体验优化能力
+- AI 接入与流式输出交互能力
+
+## 二、技术栈
+
+### 前端技术栈
+
 - Vue 3
 - TypeScript
 - Vite
@@ -14,30 +33,107 @@
 - Axios
 - ECharts
 - Vue I18n
+- Marked
+- Highlight.js
 
-### 后端
+### 后端技术栈
+
 - Node.js
 - Express
 - TypeScript
 - JWT
 - SSE
-- Mock / 内存数据
+- Dotenv
+- OpenAI 兼容客户端 SDK
+- 阿里云百炼兼容接口
 
-## 功能模块
+## 三、核心功能
 
-- 登录鉴权：登录、token 存储、路由守卫、401 拦截、refresh token 刷新
-- 权限系统：RBAC 角色模型、动态菜单、动态路由、按钮级权限、自定义 `v-permission`
-- 基础后台：Dashboard、用户管理、角色管理、菜单管理、日志管理、系统设置
-- 业务中心：商家管理、商品管理、订单管理、活动管理、优惠券管理
-- 数据可视化：指标卡片、折线图、柱状图、饼图、时间筛选、CSV 导出
-- AI 助手：会话列表、Prompt 模板、Markdown 渲染、代码高亮、本地缓存
-- 流式输出：Express SSE 接口、前端逐段拼接、停止生成、重新生成、失败提示
-- 体验优化：懒加载、keep-alive、虚拟列表、暗黑模式、国际化、Skeleton、空状态
+### 1. 登录与鉴权
 
-## 项目结构
+- 登录页支持用户名、密码、图形验证码登录
+- 注册页支持用户名、姓名、密码、确认密码、图形验证码
+- 支持 `accessToken + refreshToken`
+- Axios 请求层自动携带令牌
+- 401 自动刷新令牌，刷新失败自动回到登录页
+- 路由守卫、退出登录、登录态清理已完整实现
+
+### 2. 权限系统
+
+- 支持 `super-admin`、`operator`、`analyst`、`merchant` 四类角色
+- 后端按角色返回菜单树
+- 前端基于菜单动态注入路由
+- 支持菜单级、路由级、按钮级权限控制
+- 支持自定义权限指令 `v-permission`
+- 非管理员即使手动输入系统管理页面地址，也会被拦截到 403
+
+### 3. 经典后台框架
+
+- 侧边栏 + 顶栏 + 标签页导航 + 面包屑布局
+- 顶栏支持主题切换、语言切换、站内信、个人设置、退出登录
+- 标签页支持关闭
+- 不同账号切换时会清空旧标签，避免越权访问历史页面
+
+### 4. 系统管理
+
+- 用户管理：新增、查看、编辑、删除，支持用户名、姓名、角色、状态等字段
+- 角色管理：新增、查看、编辑、删除、权限管理
+- 菜单管理：菜单树展示、角色菜单分配
+- 日志管理：查看、删除
+- 系统设置：语言切换、主题配置等基础设置入口
+
+### 5. 业务中心
+
+- 商家管理：支持唯一商家编号、新增、编辑、删除、本地持久化
+- 商品管理：支持唯一商品编号、新增、编辑、删除、本地持久化
+- 订单管理：支持唯一订单编号、新增、编辑、删除、本地持久化
+- 活动管理：支持唯一活动编号、新增、编辑、删除、本地持久化
+- 优惠券管理：支持唯一优惠券编号、新增、编辑、删除、本地持久化
+- 渠道管理：支持新增、编辑、删除，并与商家、订单表单联动
+
+### 6. 数据可视化
+
+- Dashboard 经营总览指标卡片
+- 订单趋势与 GMV 趋势折线图
+- 品类销售柱状图
+- 用户来源饼图
+- 支持时间筛选
+- 支持报表导出为 CSV
+
+### 7. AI 运营助手
+
+- 会话列表、新建会话、删除会话
+- 常用提示词模板
+- Markdown 渲染与代码高亮
+- 用户消息支持复制、编辑
+- 助手消息支持重新生成
+- 会话记录按账号隔离缓存
+- 支持停止生成、失败提示、重新生成
+- 支持流式逐段展示，不再一次性整段返回
+
+### 8. 个人中心与站内信
+
+- 个人设置页面支持修改头像、姓名、密码、手机号、电子邮件、地址
+- 普通用户可以提交权限变更申请
+- 超级管理员隐藏“申请修改权限”区域
+- 顶栏站内信入口支持未读红点提示
+- 用户申请权限后会向管理员发送站内信
+- 管理员修改角色后会向用户发送权限变更站内信
+
+### 9. 体验优化
+
+- 路由懒加载
+- `keep-alive` 页面缓存
+- 虚拟列表
+- 暗黑模式
+- 中英文国际化
+- 空状态、异常状态、加载状态处理
+- AI 思考态与流式渲染体验优化
+
+## 四、项目结构
 
 ```text
-ai-ops-management-platform
+vue3-system
 ├─ frontend
 │  ├─ src
 │  │  ├─ api
@@ -56,17 +152,21 @@ ai-ops-management-platform
 │  └─ vite.config.ts
 ├─ backend
 │  ├─ src
+│  │  ├─ lib
 │  │  ├─ middlewares
 │  │  ├─ mock
 │  │  ├─ routes
 │  │  ├─ services
 │  │  ├─ types
 │  │  └─ utils
+│  ├─ .env.example
 │  └─ tsconfig.json
-└─ README.md
+├─ package.json
+├─ README.md
+└─ README-en.md
 ```
 
-## 启动方式
+## 五、快速开始
 
 ### 1. 安装依赖
 
@@ -74,136 +174,251 @@ ai-ops-management-platform
 npm install
 ```
 
-### 2. 同时启动前后端
+### 2. 配置后端环境变量
+
+先参考 `backend/.env.example` 新建 `backend/.env`：
+
+```bash
+ALIYUN_API_KEY=你的百炼密钥
+ALIYUN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+ALIYUN_MODEL=qwen-plus
+PORT=3001
+```
+
+说明：
+
+- `ALIYUN_API_KEY`：阿里云百炼接口密钥
+- `ALIYUN_BASE_URL`：百炼兼容接口地址
+- `ALIYUN_MODEL`：默认模型名称
+- `PORT`：后端本地启动端口，当前默认 `3001`
+
+### 3. 启动项目
+
+同时启动前后端：
 
 ```bash
 npm run dev
 ```
 
-### 3. 分别启动
+分别启动：
 
 ```bash
 npm run dev:frontend
 npm run dev:backend
 ```
 
-### 4. 构建
+### 4. 构建项目
 
 ```bash
 npm run build
 ```
 
-前端默认地址：`http://localhost:5173`
+### 5. 默认访问地址
 
-后端默认地址：`http://localhost:3001`
+- 前端地址：`http://localhost:5173`
+- 后端地址：`http://localhost:3001`
 
-## 演示账号
+## 六、演示账号
 
-- `admin / 123456`：`super-admin`
-- `operator / 123456`：`operator`
-- `analyst / 123456`：`analyst`
-- `merchant / 123456`：`merchant`
+- `admin / 123456`：超级管理员
+- `operator / 123456`：运营角色
+- `analyst / 123456`：分析角色
+- `merchant / 123456`：商家角色
 
-## 角色说明
+## 七、角色说明
 
-- `super-admin`：可访问所有模块，拥有用户、角色、菜单等完整权限
-- `operator`：侧重商家、商品、活动、系统设置等运营模块
-- `analyst`：侧重 Dashboard、日志、订单和分析能力
-- `merchant`：仅访问与商家经营相关页面和 AI 助手
+### 超级管理员
 
-## 核心实现说明
+- 可访问所有模块
+- 可管理用户、角色、菜单、日志
+- 可在用户管理中修改其他用户角色
 
-### 1. 登录鉴权
-- 后端 `POST /api/auth/login` 返回 `accessToken + refreshToken`
-- 前端 Axios 请求拦截器自动带 token
-- 401 时触发 refresh token 刷新，刷新失败则回到登录页
+### 运营角色
 
-### 2. RBAC + 动态路由
-- 后端按角色返回菜单树 `GET /api/menus`
-- 前端将菜单配置转换为真实路由并动态注入
-- `Pinia user store` 统一管理用户、菜单、权限点
-- `v-permission` 指令实现按钮级权限裁剪
+- 侧重商家、商品、活动、订单等业务管理
+- 可使用 AI 助手和个人设置
 
-### 3. Dashboard 可视化
-- `GET /api/dashboard/overview` 返回核心指标
-- `GET /api/dashboard/charts` 返回订单趋势、GMV、品类销售、用户来源
-- 图表组件按需加载 `echarts`
-- 支持 CSV 导出
+### 分析角色
 
-### 4. AI 助手与 SSE
-- `GET /api/ai/prompts` 返回常用 Prompt 模板
-- `GET /api/ai/stream` 使用 SSE 分段推送分析内容
-- 前端通过 `fetch + ReadableStream` 解析 SSE 协议
-- 支持逐段展示、停止生成、重新生成、本地缓存聊天记录
-- 服务端处理客户端断开连接并发送完成标志
+- 侧重经营看板、订单分析、AI 辅助分析
+- 可使用 AI 助手和个人设置
 
-## 后端接口
+### 商家角色
+
+- 仅访问与商家经营相关页面
+- 可使用 AI 助手和个人设置
+
+## 八、前端页面清单
+
+- 登录页
+- 注册页
+- Dashboard 经营总览
+- 用户管理
+- 角色管理
+- 菜单管理
+- 日志管理
+- 系统设置
+- 商家管理
+- 商品管理
+- 订单管理
+- 活动管理
+- 优惠券管理
+- 渠道管理
+- AI 运营助手
+- 个人设置
+- 403 页面
+- 404 页面
+
+## 九、核心实现说明
+
+### 1. 鉴权链路
+
+- 后端 `POST /api/auth/login` 返回登录令牌
+- 后端 `POST /api/auth/refresh` 提供令牌续期
+- 前端请求拦截器统一注入令牌
+- 令牌失效后自动刷新，刷新失败自动退出
+
+### 2. RBAC 与动态路由
+
+- 后端 `GET /api/menus` 基于角色返回菜单
+- 前端根据菜单结构动态生成真实路由
+- `Pinia` 统一管理用户资料、菜单、权限点、标签页状态
+- `v-permission` 实现按钮级权限控制
+
+### 3. 业务数据持久化
+
+- 业务中心的新增、编辑、删除操作写入浏览器本地缓存
+- 页面刷新后仍保留演示数据
+- 订单、活动、商家、渠道等表单存在业务联动
+
+### 4. AI 助手与流式输出
+
+- 后端 `GET /api/ai/prompts` 返回提示词模板
+- 后端 `GET /api/ai/stream` 使用 SSE 推送流式内容
+- 前端继续消费以下协议：
+  - `data: {"type":"chunk","content":"..."}`
+  - `data: {"type":"done"}`
+- 支持停止生成、重新生成、错误兜底
+
+### 5. AI 读取经营数据
+
+当前 AI 助手不是简单的固定文案生成，而是会在后端调用模型前，先读取并注入业务上下文，包括：
+
+- 经营总览数据
+- 最近若干天图表数据
+- 时间筛选条件
+- 商家筛选条件
+- 渠道筛选条件
+- 根据筛选条件生成的业务摘要
+
+这样模型回答会更贴近 Dashboard 的真实演示数据，而不是完全脱离业务上下文。
+
+### 6. 真实模型接入
+
+- 后端已将旧的模拟定时器输出替换为阿里云百炼兼容接口
+- 使用环境变量读取模型配置，不在前端暴露密钥
+- 上游请求失败时，后端会返回可读错误内容，再发送完成标记，保证前端界面不崩溃
+
+## 十、后端接口清单
+
+### 鉴权相关
 
 - `POST /api/auth/login`
+- `POST /api/auth/register`
 - `POST /api/auth/refresh`
+- `GET /api/auth/captcha`
+
+### 用户与权限
+
 - `GET /api/user/profile`
+- `PATCH /api/user/profile`
 - `GET /api/menus`
 - `GET /api/users`
+- `POST /api/users`
+- `PATCH /api/users/:id`
+- `DELETE /api/users/:id`
 - `GET /api/roles`
+
+### 看板与业务
+
 - `GET /api/dashboard/overview`
 - `GET /api/dashboard/charts`
-- `GET /api/orders`
 - `GET /api/merchants`
 - `GET /api/products`
+- `GET /api/orders`
 - `GET /api/activities`
 - `GET /api/coupons`
+- `GET /api/channels`
 - `GET /api/logs`
+
+### 消息与 AI
+
+- `GET /api/messages`
+- `POST /api/messages/:id/read`
+- `POST /api/messages/permission-request`
 - `GET /api/ai/prompts`
 - `GET /api/ai/stream`
 
-## AI 流式输出说明
+## 十一、AI 流式输出说明
 
-后端通过 `text/event-stream` 分段推送模拟经营分析文本，每 700ms 输出一段，并在结束时发送：
-
-- `{"type":"chunk","content":"..."}`
-- `{"type":"done"}`
-
-前端收到后会实时拼接助手消息内容，并在中断、完成、异常时更新消息状态。
-
-## 简历可写亮点
-
-- 独立搭建 Vue3 + TS + Vite + Express 的前后端分离企业级中后台项目
-- 设计并实现 RBAC 权限模型，支持菜单级、路由级、按钮级动态权限控制
-- 封装统一请求层、路由守卫和 refresh token 续期机制，完善异常链路
-- 构建 Dashboard 可视化系统，完成指标卡片、趋势图、分布图和报表导出
-- 接入 AI 运营助手，基于 SSE 实现流式输出、停止生成、重试和本地会话缓存
-- 落地暗黑模式、国际化、懒加载、keep-alive 和虚拟列表等工程化体验优化
-
-## 已完成自检
-
-- 后端 TypeScript 类型检查通过
-- 前端 TypeScript 类型检查通过
-- 前端生产构建通过
-- 后端登录、菜单接口、SSE 接口已完成本地烟测
-
-## 可继续扩展
-
-- 接入真实数据库与 ORM
-- 接入真实大模型 API，支持上下文多轮会话和引用来源
-- 增加更细粒度的组织、租户、数据权限
-- 增加图表钻取、报表中心、下载 Excel
-- 接入单元测试、E2E 测试、ESLint / Prettier / Husky
-- 增加 WebSocket 消息中心和实时告警
-## AI Real API Config
-
-The backend `/api/ai/stream` now uses the Alibaba Cloud Bailian compatible API instead of the old mock timer output.
-The frontend protocol stays unchanged:
+后端返回 `text/event-stream`，并保持以下事件格式不变：
 
 - `data: {"type":"chunk","content":"..."}`
 - `data: {"type":"done"}`
 
-Create `backend/.env` before starting:
+后端处理流程：
 
-```bash
-ALIYUN_API_KEY=your_dashscope_key
-ALIYUN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-ALIYUN_MODEL=qwen-plus
-PORT=3001
-```
+1. 校验登录态
+2. 读取经营总览、图表数据和筛选条件
+3. 拼接为结构化业务上下文
+4. 调用阿里云百炼兼容接口
+5. 将模型流式内容转发给前端
+6. 完成时发送 `done`
+7. 客户端断开时安全中止
 
-If `ALIYUN_API_KEY` is missing or the upstream request fails, the backend will return a readable error chunk and then send `done`, so the existing frontend can continue rendering safely.
+如果百炼密钥缺失、模型配置错误或网络异常，后端不会直接崩溃，而是返回一段可读错误信息给前端，便于页面稳定展示。
+
+## 十二、站内信与个人中心说明
+
+### 个人设置
+
+- 头像
+- 姓名
+- 密码
+- 手机号
+- 电子邮件
+- 地址
+- 权限申请
+
+### 站内信
+
+- 顶栏信封图标显示未读红点
+- 支持查看消息与标记已读
+- 用户提交权限申请后，超级管理员收到站内信
+- 超级管理员修改角色后，目标用户收到站内信
+
+## 十三、简历可写亮点
+
+- 独立搭建企业级前后端分离中后台项目，完成从脚手架、权限、业务模块到 AI 能力接入的全链路实现
+- 设计并实现基于角色的 RBAC 权限系统，支持菜单级、路由级、按钮级动态权限控制
+- 封装通用表格、查询表单、弹窗表单、图表卡片、聊天消息等高复用组件，提升后台页面开发效率
+- 搭建经营分析看板，完成核心指标卡片、趋势图、分布图和报表导出能力
+- 接入阿里云百炼真实模型接口，使用 SSE 实现前后端流式输出交互，并保持前端协议稳定
+- 结合 Dashboard 经营数据为 AI 助手注入业务上下文，使回答更贴近实际经营场景
+
+## 十四、自检结果
+
+- 后端类型检查通过
+- 前端类型检查通过
+- 后端构建通过
+- 前端构建通过
+- 登录、注册、权限、业务管理、AI 流式输出链路已完成本地联调
+
+## 十五、后续可扩展方向
+
+- 接入真实数据库与 ORM
+- 接入多轮对话上下文与历史记忆
+- 增加更细粒度的数据权限与租户隔离
+- 增加报表中心、导出中心、图表钻取
+- 完善单元测试、端到端测试、代码规范工具链
+- 增加实时通知、任务调度、更多 AI 场景能力
