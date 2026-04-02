@@ -12,9 +12,11 @@
   "dependencies": {
     "cors": "^2.8.5",
     "dayjs": "^1.11.18",
+    "dotenv": "^17.4.0",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "openai": "^6.33.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",

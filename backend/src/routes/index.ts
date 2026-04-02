@@ -3,13 +3,28 @@ import { Router } from 'express';
 import authRoutes from './auth.js';
 import { authMiddleware, type AuthRequest } from '../middlewares/auth.js';
 import { ok } from '../utils/response.js';
-import { activities, aiPrompts, channels, coupons, getUserById, logs, merchants, orders, products, roles, siteMessages, users, credentialMap } from '../mock/data.js';
-import { getMenusByRole, getPermissionCodes } from '../services/menu.service.js';
+import { activities, aiPrompts, channels, coupons, credentialMap, getUserById, logs, merchants, orders, products, roles, siteMessages, users } from '../mock/data.js';
 import { getCharts, getOverview } from '../services/dashboard.service.js';
-import { buildAiAnalysis } from '../services/ai.service.js';
+import { getMenusByRole, getPermissionCodes } from '../services/menu.service.js';
+import { streamAiAnalysis, toReadableAiError } from '../services/ai.service.js';
 import type { RoleCode } from '../types/auth.js';
 
 const router = Router();
+
+function buildAiBusinessContext(role: string, days = 30) {
+  const overview = getOverview(role);
+  const charts = getCharts(days);
+
+  return [
+    '以下是当前经营数据，请严格基于这些数据进行分析：',
+    '',
+    '【经营总览】',
+    JSON.stringify(overview, null, 2),
+    '',
+    `【近 ${days} 天图表数据】`,
+    JSON.stringify(charts, null, 2)
+  ].join('\n');
+}
 
 function buildUserList() {
   return users.map((item) => ({
@@ -24,6 +39,70 @@ function buildUserList() {
     email: item.email,
     address: item.address
   }));
+}
+
+type AiFilterOptions = {
+  days: number;
+  merchant: string;
+  channel: string;
+};
+
+function buildStructuredAiBusinessContext(role: string, filters: AiFilterOptions) {
+  const { days, merchant, channel } = filters;
+  const overview = getOverview(role);
+  const charts = getCharts(days);
+  const merchantOptions = merchants.map((item) => item.name);
+  const channelOptions = channels.map((item) => item.name);
+  const selectedMerchant = merchant && merchant !== 'all' ? merchant : '全部商家';
+  const selectedChannel = channel && channel !== 'all' ? channel : '全部渠道';
+  const filteredOrders = orders.filter((item) => {
+    const matchMerchant = selectedMerchant === '全部商家' || item.merchantName === selectedMerchant;
+    const matchChannel = selectedChannel === '全部渠道' || item.channel === selectedChannel;
+    return matchMerchant && matchChannel;
+  });
+  const filteredMerchants = merchants.filter((item) => {
+    const matchMerchant = selectedMerchant === '全部商家' || item.name === selectedMerchant;
+    const matchChannel = selectedChannel === '全部渠道' || item.channel === selectedChannel;
+    return matchMerchant && matchChannel;
+  });
+
+  return [
+    '以下是当前经营数据，请严格基于这些数据进行分析：',
+    '',
+    '【当前筛选条件】',
+    JSON.stringify(
+      {
+        days,
+        merchant: selectedMerchant,
+        channel: selectedChannel,
+        availableMerchants: merchantOptions,
+        availableChannels: channelOptions
+      },
+      null,
+      2
+    ),
+    '',
+    '【筛选后的业务摘要】',
+    JSON.stringify(
+      {
+        merchantCount: filteredMerchants.length,
+        orderCount: filteredOrders.length,
+        totalAmount: filteredOrders.reduce((sum, item) => sum + Number(item.amount ?? 0), 0),
+        paidOrders: filteredOrders.filter((item) => item.status === '已支付' || item.status === '已完成').length,
+        refundOrders: filteredOrders.filter((item) => item.status === '已退款').length,
+        merchantNames: filteredMerchants.map((item) => item.name),
+        channelNames: Array.from(new Set(filteredOrders.map((item) => item.channel)))
+      },
+      null,
+      2
+    ),
+    '',
+    '【经营总览】',
+    JSON.stringify(overview, null, 2),
+    '',
+    `【近 ${days} 天图表数据】`,
+    JSON.stringify(charts, null, 2)
+  ].join('\n');
 }
 
 function notifyUser(userId: string, title: string, content: string, type: 'permission-request' | 'permission-updated' | 'system') {
@@ -228,31 +307,53 @@ router.get('/channels', authMiddleware, (_, res) => res.json(ok({ list: channels
 router.get('/logs', authMiddleware, (_, res) => res.json(ok({ list: logs, total: logs.length })));
 router.get('/ai/prompts', authMiddleware, (_, res) => res.json(ok(aiPrompts)));
 
-router.get('/ai/stream', authMiddleware, (req, res) => {
-  const prompt = String(req.query.prompt ?? 'Please analyze the latest business metrics');
-  const chunks = buildAiAnalysis(prompt);
+router.get('/ai/stream', authMiddleware, async (req: AuthRequest, res) => {
+  const prompt = String(req.query.prompt ?? '请基于最近的经营数据给出运营分析').trim();
+  const days = Number(req.query.days ?? 30);
+  const merchant = String(req.query.merchant ?? 'all').trim();
+  const channel = String(req.query.channel ?? 'all').trim();
+  const businessContext = buildStructuredAiBusinessContext(req.user!.role, {
+    days: Number.isFinite(days) && days > 0 ? days : 30,
+    merchant,
+    channel
+  });
+  const controller = new AbortController();
+  let closed = false;
 
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders?.();
 
-  let index = 0;
-  const timer = setInterval(() => {
-    if (index < chunks.length) {
-      res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunks[index] })}\n\n`);
-      index += 1;
-      return;
-    }
-
-    res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
-    clearInterval(timer);
-    res.end();
-  }, 650);
+  const writeEvent = (payload: { type: 'chunk' | 'done'; content?: string }) => {
+    if (closed || res.writableEnded) return;
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  };
 
   req.on('close', () => {
-    clearInterval(timer);
+    closed = true;
+    controller.abort();
   });
+
+  try {
+    for await (const chunk of streamAiAnalysis({
+      prompt,
+      businessContext,
+      signal: controller.signal
+    })) {
+      if (closed) break;
+      writeEvent({ type: 'chunk', content: chunk });
+    }
+  } catch (error) {
+    if (!closed) {
+      writeEvent({ type: 'chunk', content: toReadableAiError(error) });
+    }
+  } finally {
+    if (!closed) {
+      writeEvent({ type: 'done' });
+      res.end();
+    }
+  }
 });
 
 export default router;

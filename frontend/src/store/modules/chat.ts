@@ -31,6 +31,16 @@ function getScopedChatKey(accountId: string) {
   return `${CHAT_CACHE_KEY}:${accountId || 'guest'}`;
 }
 
+function normalizeSessions(sessions: ChatSession[]) {
+  return sessions.map((session) => ({
+    ...session,
+    messages: session.messages.map((message) => ({
+      ...message,
+      loading: false
+    }))
+  }));
+}
+
 export const useChatStore = defineStore('chat', {
   state: (): ChatState => ({
     ...createInitialState(localStorage.getItem(CHAT_ACCOUNT_KEY) ?? '')
@@ -43,7 +53,7 @@ export const useChatStore = defineStore('chat', {
   actions: {
     loadForAccount(accountId: string) {
       const sessions = getStorage<ChatSession[]>(getScopedChatKey(accountId), []);
-      const initial = sessions.length ? sessions : createInitialState(accountId).sessions;
+      const initial = sessions.length ? normalizeSessions(sessions) : createInitialState(accountId).sessions;
       this.sessions = initial;
       this.activeSessionId = initial[0].id;
       this.accountId = accountId;

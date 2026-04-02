@@ -27,6 +27,6 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
     req.user = user;
     next();
   } catch {
-    res.status(401).json({ code: 401, message: 'token 已失效', data: null });
+    res.status(401).json({ code: 401, message: 'Token 已失效', data: null });
   }
 }

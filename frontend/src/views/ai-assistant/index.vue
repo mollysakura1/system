@@ -40,6 +40,8 @@
             :key="message.id"
             :message="message"
             :loading="message.loading"
+            @edit="handleEditMessage"
+            @regenerate="handleRegenerateMessage"
           />
         </template>
         <el-empty v-else :description="t('ai.empty')" />
@@ -47,6 +49,7 @@
 
       <div class="composer">
         <el-input
+          ref="inputRef"
           v-model="inputValue"
           type="textarea"
           :rows="4"
@@ -67,7 +70,7 @@ import dayjs from 'dayjs';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useI18n } from 'vue-i18n';
-import type { ElScrollbar } from 'element-plus';
+import type { ElInput, ElScrollbar } from 'element-plus';
 import StreamMessage from '../../components/stream-message.vue';
 import { getAiPromptsApi } from '../../api/ai';
 import { useChatStore } from '../../store/modules/chat';
@@ -76,7 +79,7 @@ import { streamSse } from '../../utils/sse';
 
 defineOptions({ name: 'AiAssistantPage' });
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 const chatStore = useChatStore();
 const prompts = ref<string[]>([]);
 const inputValue = ref('');
@@ -84,6 +87,7 @@ const streaming = ref(false);
 const abortController = ref<AbortController | null>(null);
 const lastPrompt = ref('');
 const scrollbarRef = ref<InstanceType<typeof ElScrollbar>>();
+const inputRef = ref<InstanceType<typeof ElInput>>();
 
 const activeSession = computed(() => chatStore.activeSession);
 const canRetry = computed(() => Boolean(lastPrompt.value && activeSession.value));
@@ -111,6 +115,17 @@ function removeSession(id: string) {
 
 function applyPrompt(prompt: string) {
   inputValue.value = prompt;
+}
+
+function handleEditMessage(content: string) {
+  inputValue.value = content;
+  nextTick(() => inputRef.value?.focus());
+  ElMessage.success(locale.value === 'en' ? 'Loaded into input box' : '已载入输入框，可继续编辑');
+}
+
+async function handleRegenerateMessage(prompt: string) {
+  if (!prompt || streaming.value) return;
+  await runStream(prompt);
 }
 
 function stopGenerate() {
@@ -238,7 +253,7 @@ onMounted(async () => {
 }
 .session-item.active { background: var(--brand-soft); color: var(--brand-primary); }
 .prompt-list { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
-.message-list { flex: 1; min-height: 320px; padding-right: 8px; }
+.message-list { flex: 1; min-height: 320px; padding-right: 8px; padding-bottom: 32px; }
 .composer { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color); }
 .composer-actions { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; }
 .hint { color: var(--text-secondary); font-size: 13px; }

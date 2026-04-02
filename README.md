@@ -189,3 +189,21 @@ npm run build
 - 增加图表钻取、报表中心、下载 Excel
 - 接入单元测试、E2E 测试、ESLint / Prettier / Husky
 - 增加 WebSocket 消息中心和实时告警
+## AI Real API Config
+
+The backend `/api/ai/stream` now uses the Alibaba Cloud Bailian compatible API instead of the old mock timer output.
+The frontend protocol stays unchanged:
+
+- `data: {"type":"chunk","content":"..."}`
+- `data: {"type":"done"}`
+
+Create `backend/.env` before starting:
+
+```bash
+ALIYUN_API_KEY=your_dashscope_key
+ALIYUN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+ALIYUN_MODEL=qwen-plus
+PORT=3001
+```
+
+If `ALIYUN_API_KEY` is missing or the upstream request fails, the backend will return a readable error chunk and then send `done`, so the existing frontend can continue rendering safely.

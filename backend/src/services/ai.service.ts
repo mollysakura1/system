@@ -1,10 +1,42 @@
-export function buildAiAnalysis(prompt: string) {
-  return [
-    `正在基于你的问题“${prompt}”汇总经营数据。\n\n`,
-    '1. 订单波动主要来自晚高峰转化下滑，近 7 天 18:00-21:00 的支付转化率下降了 1.8 个百分点。\n\n',
-    '2. 抖音渠道流量环比上涨，但新客首单优惠领取率下降，导致曝光增长没有同步转化为 GMV。\n\n',
-    '3. 星澜咖啡的复购用户贡献仍然稳定，城市轻食的新品上架节奏偏慢，是整体下滑的主要拖累项。\n\n',
-    '4. 建议优先执行三件事：恢复晚高峰券包投放、优化短视频落地页首屏利益点、针对低活跃商家推送 AI 生成的周促销方案。\n\n',
-    '5. 如果你需要，我还可以继续生成周报摘要、活动文案或细化到商家维度的异常诊断。'
-  ];
+import { getAliyunClient, getAliyunConfig } from '../lib/aliyun.js';
+
+export const AI_SYSTEM_PROMPT =
+  '你是一个电商/运营分析助手，请始终使用中文回答。你会先阅读我提供的经营数据，再结合用户问题进行分析。输出要结构清晰、结论明确，优先基于数据回答，不要脱离数据臆测。';
+
+type AiAnalysisOptions = {
+  prompt: string;
+  businessContext?: string;
+  signal?: AbortSignal;
+};
+
+export async function* streamAiAnalysis(options: AiAnalysisOptions): AsyncGenerator<string, void, void> {
+  const client = getAliyunClient();
+  const { model } = getAliyunConfig();
+  const userContent = options.businessContext
+    ? `${options.businessContext}\n\n用户问题：${options.prompt}`
+    : options.prompt;
+
+  const stream = await client.chat.completions.create(
+    {
+      model,
+      stream: true,
+      messages: [
+        { role: 'system', content: AI_SYSTEM_PROMPT },
+        { role: 'user', content: userContent }
+      ]
+    },
+    { signal: options.signal }
+  );
+
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta?.content;
+    if (typeof delta === 'string' && delta) {
+      yield delta;
+    }
+  }
+}
+
+export function toReadableAiError(error: unknown) {
+  const message = error instanceof Error ? error.message : '未知错误';
+  return `AI 服务暂时不可用：${message}\n请检查百炼 API Key、Base URL、模型名称或网络连接后重试。`;
 }
