@@ -5,7 +5,7 @@ const ACCESS_SECRET = 'ai-ops-access-secret';
 const REFRESH_SECRET = 'ai-ops-refresh-secret';
 
 export function signAccessToken(payload: Omit<JwtPayload, 'type'>) {
-  return jwt.sign({ ...payload, type: 'access' }, ACCESS_SECRET, { expiresIn: '30m' });
+  return jwt.sign({ ...payload, type: 'access' }, ACCESS_SECRET, { expiresIn: '1h' });
 }
 
 export function signRefreshToken(payload: Omit<JwtPayload, 'type'>) {

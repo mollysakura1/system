@@ -5,6 +5,7 @@ import { REFRESH_TOKEN_KEY, TOKEN_KEY } from '../config';
 import i18n from '../locales';
 import router from '../router';
 import { useUserStore } from '../store/modules/user';
+import { expireSession, isSessionIdleExpired, touchSessionActivity } from './session';
 
 const service = axios.create({
   baseURL: '/api',
@@ -16,7 +17,12 @@ let refreshPromise: Promise<string> | null = null;
 service.interceptors.request.use((config) => {
   const token = localStorage.getItem(TOKEN_KEY);
   if (token) {
+    if (isSessionIdleExpired()) {
+      expireSession();
+      return Promise.reject(new axios.Cancel('Session idle timeout'));
+    }
     config.headers.Authorization = `Bearer ${token}`;
+    touchSessionActivity();
   }
   return config;
 });

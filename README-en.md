@@ -47,6 +47,7 @@ This project uses a dual-directory front-end and back-end structure:
 - Supports `accessToken + refreshToken`
 - Axios request layer automatically attaches tokens
 - Automatically refreshes tokens on 401 and redirects to login if refresh fails
+- Supports automatic session expiration and re-login after 1 hour of inactivity
 - Route guards, logout flow, and auth-state cleanup are fully implemented
 
 ### 2. Permission System
@@ -267,6 +268,7 @@ npm run build
 - The back end returns tokens through `POST /api/auth/login`
 - The back end provides token refresh through `POST /api/auth/refresh`
 - The front-end request interceptor injects tokens automatically
+- The front end tracks user activity globally, and clears the session and redirects to login after 1 hour of inactivity
 - When tokens expire, they are refreshed automatically; if refresh fails, the user is logged out
 
 ### 2. RBAC and Dynamic Routing

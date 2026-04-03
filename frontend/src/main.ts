@@ -8,6 +8,7 @@ import router from './router';
 import { setupDirectives } from './directives';
 import i18n from './locales';
 import './styles/index.css';
+import { setupSessionActivityTracking } from './utils/session';
 
 const app = createApp(App);
 
@@ -16,5 +17,6 @@ app.use(router);
 app.use(ElementPlus);
 app.use(i18n);
 setupDirectives(app);
+setupSessionActivityTracking();
 
 app.mount('#app');

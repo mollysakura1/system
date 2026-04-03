@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia';
-import { REFRESH_TOKEN_KEY, TOKEN_KEY } from '../../config';
+import { LAST_ACTIVE_AT_KEY, REFRESH_TOKEN_KEY, TOKEN_KEY } from '../../config';
 import { getMenusApi } from '../../api/system';
 import { getProfileApi, loginApi, refreshTokenApi, updateProfileApi } from '../../api/auth';
 import type { AppMenu, LoginResult, UserProfile } from '../../types';
 import { useAppStore } from './app';
 import { useChatStore } from './chat';
 import { useMessageStore } from './message';
+import { clearSessionActivity, touchSessionActivity } from '../../utils/session';
 
 interface UserState {
   accessToken: string;
@@ -39,6 +40,7 @@ export const useUserStore = defineStore('user', {
       useAppStore().clearVisitedTabs();
       const { data } = await loginApi(payload);
       this.setToken(data);
+      touchSessionActivity(true);
       this.dynamicRoutesReady = false;
       return data;
     },
@@ -80,6 +82,8 @@ export const useUserStore = defineStore('user', {
       this.dynamicRoutesReady = false;
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(REFRESH_TOKEN_KEY);
+      localStorage.removeItem(LAST_ACTIVE_AT_KEY);
+      clearSessionActivity();
     }
   }
 });
