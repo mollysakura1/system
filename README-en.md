@@ -1,6 +1,6 @@
 # AI Intelligent Operations Management Platform
 
-An enterprise-grade front-end and back-end separated project designed for front-end internship resumes, project presentations, and admin-system interview demos. The project is positioned as an “AI-driven SaaS merchant operations management platform” and covers login authentication, RBAC permissions, dynamic routing, business dashboards, business modules, internal messaging, profile settings, internationalization, and a real streaming AI assistant powered by Alibaba Cloud Bailian.
+An enterprise-grade front-end and back-end separated project positioned as an “AI-driven SaaS merchant operations management platform.” The project includes login authentication, RBAC permissions, dynamic routing, business dashboards, business modules, internal messaging, profile settings, internationalization, and a real streaming AI assistant powered by Alibaba Cloud Bailian.
 
 ## 1. Project Overview
 
@@ -10,15 +10,6 @@ This project uses a dual-directory front-end and back-end structure:
 - Back end: `Node.js + Express + TypeScript + JWT + SSE`
 - AI capability: the back end connects to the Alibaba Cloud Bailian compatible API, while the front end keeps using the existing SSE protocol for streaming consumption
 - Data layer: mainly based on in-memory data and local persistence, with priority on runnability, clear structure, and complete features
-
-The project highlights the following capabilities:
-
-- Enterprise admin-system architecture design
-- RBAC permission model and dynamic routing implementation
-- High-reusability component design
-- Data visualization and business analytics
-- Engineering quality and user-experience optimization
-- AI integration and streaming interaction
 
 ## 2. Tech Stack
 
@@ -67,12 +58,12 @@ The project highlights the following capabilities:
 - Supports the custom permission directive `v-permission`
 - Non-admin users are redirected to 403 even if they manually enter system-management URLs
 
-### 3. Classic Admin Layout
+### 3. Admin Layout
 
 - Sidebar + top bar + tab navigation + breadcrumb layout
 - The top bar supports theme switching, language switching, internal messages, profile settings, and logout
 - Tabs can be closed
-- Old tabs are cleared when switching accounts to avoid historical unauthorized access
+- Old tabs are cleared when switching accounts to avoid stale permission state
 
 ### 4. System Management
 
@@ -109,7 +100,7 @@ The project highlights the following capabilities:
 - Assistant messages support regeneration
 - Session records are cached separately by account
 - Supports stop generation, failure hints, and regeneration
-- Supports true streaming display instead of one-time full response output
+- Supports true streaming display
 
 ### 8. Profile Center and Internal Messaging
 
@@ -302,7 +293,7 @@ npm run build
 
 ### 5. AI Reads Business Data
 
-The AI assistant is no longer a simple fixed-text generator. Before calling the model, the back end now injects business context including:
+Before calling the model, the back end injects business context including:
 
 - overview metrics
 - chart data for recent days
@@ -311,13 +302,11 @@ The AI assistant is no longer a simple fixed-text generator. Before calling the 
 - channel filter
 - business summary generated from the current filters
 
-This makes the model’s answers closer to the dashboard demo data instead of detached general statements.
-
 ### 6. Real Model Integration
 
 - The old mock timer-based output has been replaced by the Alibaba Cloud Bailian compatible API
 - Model settings are read from environment variables, with no key exposed to the front end
-- If the upstream request fails, the back end returns readable error content and then sends the completion event, so the front-end UI remains stable
+- If the upstream request fails, the back end returns readable error content and then sends the completion event
 
 ## 10. Back-End API List
 
@@ -376,7 +365,7 @@ Back-end flow:
 6. Send `done` on completion
 7. Abort safely when the client disconnects
 
-If the Bailian key is missing, the model configuration is invalid, or the network fails, the back end does not crash directly. Instead, it returns readable error content to the front end so the page remains stable.
+If the Bailian key is missing, the model configuration is invalid, or the network fails, the back end returns readable error content to the front end.
 
 ## 12. Internal Messaging and Profile Center
 
@@ -397,16 +386,7 @@ If the Bailian key is missing, the model configuration is invalid, or the networ
 - When a user submits a role-change request, the super admin receives an internal message
 - When a super admin updates a role, the target user receives an internal message
 
-## 13. Resume Highlights
-
-- Independently built an enterprise-grade front-end and back-end separated admin project, covering scaffolding, permissions, business modules, and AI integration
-- Designed and implemented an RBAC permission system supporting dynamic menu-level, route-level, and button-level authorization
-- Built reusable components such as base tables, search forms, modal forms, chart cards, and chat message components to improve admin-page development efficiency
-- Implemented an operations dashboard with metric cards, trend charts, distribution charts, and CSV export capability
-- Integrated the real Alibaba Cloud Bailian model API and implemented streaming interaction with SSE while keeping the front-end protocol stable
-- Injected dashboard business context into the AI assistant to make responses closer to real business scenarios
-
-## 14. Verification Status
+## 13. Verification Status
 
 - Back-end type checking passed
 - Front-end type checking passed
@@ -414,7 +394,7 @@ If the Bailian key is missing, the model configuration is invalid, or the networ
 - Front-end build passed
 - Login, registration, permissions, business management, and AI streaming flows have been verified locally
 
-## 15. Possible Extensions
+## 14. Possible Extensions
 
 - Integrate a real database and ORM
 - Support multi-turn conversational memory
