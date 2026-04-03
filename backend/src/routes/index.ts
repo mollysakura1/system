@@ -312,11 +312,14 @@ router.get('/ai/stream', authMiddleware, async (req: AuthRequest, res) => {
   const days = Number(req.query.days ?? 30);
   const merchant = String(req.query.merchant ?? 'all').trim();
   const channel = String(req.query.channel ?? 'all').trim();
-  const businessContext = buildStructuredAiBusinessContext(req.user!.role, {
-    days: Number.isFinite(days) && days > 0 ? days : 30,
-    merchant,
-    channel
-  });
+  const includeContext = String(req.query.includeContext ?? '1') !== '0';
+  const businessContext = includeContext
+    ? buildStructuredAiBusinessContext(req.user!.role, {
+        days: Number.isFinite(days) && days > 0 ? days : 30,
+        merchant,
+        channel
+      })
+    : undefined;
   const controller = new AbortController();
   let closed = false;
 

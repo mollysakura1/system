@@ -56,6 +56,10 @@
           :placeholder="t('ai.placeholder')"
           @keydown.ctrl.enter.prevent="sendMessage"
         />
+        <div class="context-toggle">
+          <el-switch v-model="includeBusinessContext" :disabled="streaming" />
+          <span>{{ contextLabel }}</span>
+        </div>
         <div class="composer-actions">
           <span class="hint">{{ streaming ? t('ai.streamingHint') : t('ai.idleHint') }}</span>
           <el-button type="primary" :loading="streaming" @click="sendMessage">{{ t('ai.send') }}</el-button>
@@ -85,12 +89,16 @@ const prompts = ref<string[]>([]);
 const inputValue = ref('');
 const streaming = ref(false);
 const abortController = ref<AbortController | null>(null);
-const lastPrompt = ref('');
+const includeBusinessContext = ref(localStorage.getItem('ai-ops-include-context') !== '0');
+const lastRequest = ref({ prompt: '', includeContext: includeBusinessContext.value });
 const scrollbarRef = ref<InstanceType<typeof ElScrollbar>>();
 const inputRef = ref<InstanceType<typeof ElInput>>();
 
 const activeSession = computed(() => chatStore.activeSession);
-const canRetry = computed(() => Boolean(lastPrompt.value && activeSession.value));
+const canRetry = computed(() => Boolean(lastRequest.value.prompt && activeSession.value));
+const contextLabel = computed(() =>
+  locale.value === 'en' ? 'Send business context to AI' : '发送运营上下文给 AI'
+);
 
 function scrollToBottom() {
   nextTick(() => {
@@ -141,7 +149,10 @@ function stopGenerate() {
 }
 
 async function runStream(prompt: string) {
-  lastPrompt.value = prompt;
+  lastRequest.value = {
+    prompt,
+    includeContext: includeBusinessContext.value
+  };
   const assistantId = crypto.randomUUID();
 
   chatStore.appendMessage({
@@ -161,7 +172,12 @@ async function runStream(prompt: string) {
   let content = '';
 
   try {
-    await streamSse(`/api/ai/stream?prompt=${encodeURIComponent(prompt)}`, {
+    const searchParams = new URLSearchParams({
+      prompt,
+      includeContext: includeBusinessContext.value ? '1' : '0'
+    });
+
+    await streamSse(`/api/ai/stream?${searchParams.toString()}`, {
       signal: controller.signal,
       headers: {
         Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY) ?? ''}`,
@@ -211,8 +227,9 @@ async function sendMessage() {
 }
 
 async function regenerate() {
-  if (!lastPrompt.value || streaming.value) return;
-  await runStream(lastPrompt.value);
+  if (!lastRequest.value.prompt || streaming.value) return;
+  includeBusinessContext.value = lastRequest.value.includeContext;
+  await runStream(lastRequest.value.prompt);
 }
 
 watch(
@@ -221,6 +238,10 @@ watch(
     scrollToBottom();
   }
 );
+
+watch(includeBusinessContext, (value) => {
+  localStorage.setItem('ai-ops-include-context', value ? '1' : '0');
+});
 
 onMounted(async () => {
   const { data } = await getAiPromptsApi();
@@ -255,6 +276,14 @@ onMounted(async () => {
 .prompt-list { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
 .message-list { flex: 1; min-height: 320px; padding-right: 8px; padding-bottom: 32px; }
 .composer { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color); }
+.context-toggle {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
 .composer-actions { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; }
 .hint { color: var(--text-secondary); font-size: 13px; }
 @media (max-width: 1200px) {

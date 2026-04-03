@@ -97,6 +97,7 @@ This project uses a dual-directory front-end and back-end structure:
 - Session list, new session, and session deletion
 - Prompt templates
 - Markdown rendering and code highlighting
+- Supports switching whether business context is sent to the AI
 - User messages support copy and edit
 - Assistant messages support regeneration
 - Session records are cached separately by account
@@ -303,6 +304,11 @@ Before calling the model, the back end injects business context including:
 - merchant filter
 - channel filter
 - business summary generated from the current filters
+
+The AI assistant page also supports switching whether business context is sent:
+
+- When enabled: the back end injects business data and filter information into the model
+- When disabled: only the user input is sent, and the assistant works in pure Q&A mode
 
 ### 6. Real Model Integration
 
