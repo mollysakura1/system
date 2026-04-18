@@ -2,13 +2,14 @@ import axios from 'axios';
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { ElMessage } from 'element-plus';
 import { REFRESH_TOKEN_KEY, TOKEN_KEY } from '../config';
+import { API_BASE_URL } from '../config/env';
 import i18n from '../locales';
 import router from '../router';
 import { useUserStore } from '../store/modules/user';
 import { expireSession, isSessionIdleExpired, touchSessionActivity } from './session';
 
 const service = axios.create({
-  baseURL: '/api',
+  baseURL: API_BASE_URL,
   timeout: 15000
 });
 

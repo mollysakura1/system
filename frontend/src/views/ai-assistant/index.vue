@@ -77,6 +77,7 @@ import { useI18n } from 'vue-i18n';
 import type { ElInput, ElScrollbar } from 'element-plus';
 import StreamMessage from '../../components/stream-message.vue';
 import { getAiPromptsApi } from '../../api/ai';
+import { API_BASE_URL } from '../../config/env';
 import { useChatStore } from '../../store/modules/chat';
 import { TOKEN_KEY } from '../../config';
 import { streamSse } from '../../utils/sse';
@@ -177,7 +178,7 @@ async function runStream(prompt: string) {
       includeContext: includeBusinessContext.value ? '1' : '0'
     });
 
-    await streamSse(`/api/ai/stream?${searchParams.toString()}`, {
+    await streamSse(`${API_BASE_URL}/ai/stream?${searchParams.toString()}`, {
       signal: controller.signal,
       headers: {
         Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY) ?? ''}`,
