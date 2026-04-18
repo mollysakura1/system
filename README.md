@@ -411,42 +411,42 @@ AI åŠ©æ‰‹é¡µé¢æ”¯æŒåˆ‡æ¢æ˜¯å¦å‘é€è¿è¥ä¸Šä¸‹æ–‡ï¼š
 - å®Œå–„å•å…ƒæµ‹è¯•ã€ç«¯åˆ°ç«¯æµ‹è¯•ã€ä»£ç è§„èŒƒå·¥å…·é“¾
 - å¢åŠ å®æ—¶é€šçŸ¥ã€ä»»åŠ¡è°ƒåº¦ã€æ›´å¤š AI åœºæ™¯èƒ½åŠ›
 
-## ²¿ÊğËµÃ÷£¨Vercel + Render£©
+## éƒ¨ç½²è¯´æ˜ï¼ˆVercel + Renderï¼‰
 
-µ±Ç°ÏîÄ¿²ÉÓÃÇ°ºó¶Ë·ÖÀë²¿Êğ£º
+å½“å‰é¡¹ç›®é‡‡ç”¨å‰åç«¯åˆ†ç¦»éƒ¨ç½²ï¼š
 
-- GitHub£ºÓÃÓÚ´úÂëÍĞ¹ÜÓë×Ô¶¯²¿Êğ´¥·¢
-- Vercel£ºÓÃÓÚ²¿Êğ `frontend` Ç°¶Ë Vue 3 + Vite Ó¦ÓÃ
-- Render£ºÓÃÓÚ²¿Êğ `backend` ºó¶Ë Node.js + Express ·şÎñ
+- GitHubï¼šç”¨äºä»£ç æ‰˜ç®¡ä¸è‡ªåŠ¨éƒ¨ç½²è§¦å‘
+- Vercelï¼šç”¨äºéƒ¨ç½² `frontend` å‰ç«¯ Vue 3 + Vite åº”ç”¨
+- Renderï¼šç”¨äºéƒ¨ç½² `backend` åç«¯ Node.js + Express æœåŠ¡
 
-Vercel Ç°¶Ë²¿ÊğÅäÖÃ£º
+Vercel å‰ç«¯éƒ¨ç½²é…ç½®ï¼š
 
-1. ½« GitHub ²Ö¿âµ¼Èë Vercel
-2. `Root Directory` ÉèÖÃÎª `frontend`
-3. `Framework Preset` Ñ¡Ôñ `Vite`
-4. `Build Command` ÉèÖÃÎª `npm run build`
-5. `Output Directory` ÉèÖÃÎª `dist`
-6. ÔÚ Vercel ÖĞÅäÖÃÒÔÏÂ»·¾³±äÁ¿²¢ÖØĞÂ²¿Êğ£º
+1. å°† GitHub ä»“åº“å¯¼å…¥ Vercel
+2. `Root Directory` è®¾ç½®ä¸º `frontend`
+3. `Framework Preset` é€‰æ‹© `Vite`
+4. `Build Command` è®¾ç½®ä¸º `npm run build`
+5. `Output Directory` è®¾ç½®ä¸º `dist`
+6. åœ¨ Vercel ä¸­é…ç½®ä»¥ä¸‹ç¯å¢ƒå˜é‡å¹¶é‡æ–°éƒ¨ç½²ï¼š
 
 ```bash
 VITE_API_BASE_URL=https://your-render-domain.onrender.com/api
 ```
 
-ËµÃ÷£º
+è¯´æ˜ï¼š
 
-- Ç°¶ËÊ¹ÓÃ `createWebHistory()`£¬Òò´ËĞèÒª [frontend/vercel.json](frontend/vercel.json) ½øĞĞ SPA Â·ÓÉ»ØÍËÅäÖÃ
-- Ç°¶Ë´Ó [frontend/src/config/env.ts](frontend/src/config/env.ts) ¶ÁÈ¡ API »ù´¡µØÖ·
+- å‰ç«¯ä½¿ç”¨ `createWebHistory()`ï¼Œå› æ­¤éœ€è¦ [frontend/vercel.json](frontend/vercel.json) è¿›è¡Œ SPA è·¯ç”±å›é€€é…ç½®
+- å‰ç«¯ä» [frontend/src/config/env.ts](frontend/src/config/env.ts) è¯»å– API åŸºç¡€åœ°å€
 
-Render ºó¶Ë²¿ÊğÅäÖÃ£º
+Render åç«¯éƒ¨ç½²é…ç½®ï¼š
 
-1. ´´½¨ĞÂµÄ `Web Service`
-2. ¹ØÁªÍ¬Ò»¸ö GitHub ²Ö¿â
-3. `Root Directory` ÉèÖÃÎª `backend`
-4. `Build Command` ÉèÖÃÎª `npm install && npm run build`
-5. `Start Command` ÉèÖÃÎª `npm run start`
-6. ÔÚ Render ºóÌ¨ÅäÖÃ»·¾³±äÁ¿
+1. åˆ›å»ºæ–°çš„ `Web Service`
+2. å…³è”åŒä¸€ä¸ª GitHub ä»“åº“
+3. `Root Directory` è®¾ç½®ä¸º `backend`
+4. `Build Command` è®¾ç½®ä¸º `npm install && npm run build`
+5. `Start Command` è®¾ç½®ä¸º `npm run start`
+6. åœ¨ Render åå°é…ç½®ç¯å¢ƒå˜é‡
 
-½¨Òé»·¾³±äÁ¿ÈçÏÂ£º
+å»ºè®®ç¯å¢ƒå˜é‡å¦‚ä¸‹ï¼š
 
 ```bash
 ALIYUN_API_KEY=your_aliyun_key
@@ -454,14 +454,14 @@ ALIYUN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
 ALIYUN_MODEL=qwen-plus
 ```
 
-²¿ÊğË³Ğò½¨Òé£º
+éƒ¨ç½²é¡ºåºå»ºè®®ï¼š
 
-1. ÏÈÔÚ Render ²¿Êğºó¶Ë£¬²¢È·ÈÏ·şÎñµØÖ·¿ÉÓÃ
-2. ÔÚ Vercel ÖĞ½« `VITE_API_BASE_URL` ÉèÖÃÎª `https://your-render-domain.onrender.com/api`
-3. ÖØĞÂ²¿ÊğÇ°¶Ë
+1. å…ˆåœ¨ Render éƒ¨ç½²åç«¯ï¼Œå¹¶ç¡®è®¤æœåŠ¡åœ°å€å¯ç”¨
+2. åœ¨ Vercel ä¸­å°† `VITE_API_BASE_URL` è®¾ç½®ä¸º `https://your-render-domain.onrender.com/api`
+3. é‡æ–°éƒ¨ç½²å‰ç«¯
 
-ÍêÕû·ÃÎÊÁ´Â·ÈçÏÂ£º
+å®Œæ•´è®¿é—®é“¾è·¯å¦‚ä¸‹ï¼š
 
-1. ÓÃ»§·ÃÎÊ Vercel Ç°¶ËÕ¾µã
-2. Ç°¶Ë½« API ÇëÇó·¢ËÍµ½ Render ºó¶Ë
-3. ºó¶Ë·µ»ØµÇÂ¼¡¢¿´°å¡¢ÒµÎñÊı¾İÒÔ¼° AI Á÷Ê½ÏìÓ¦
+1. ç”¨æˆ·è®¿é—® Vercel å‰ç«¯ç«™ç‚¹
+2. å‰ç«¯å°† API è¯·æ±‚å‘é€åˆ° Render åç«¯
+3. åç«¯è¿”å›ç™»å½•ã€çœ‹æ¿ã€ä¸šåŠ¡æ•°æ®ä»¥åŠ AI æµå¼å“åº”
