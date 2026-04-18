@@ -211,6 +211,61 @@ npm run build
 - Front-end URL: `http://localhost:5173`
 - Back-end URL: `http://localhost:3001`
 
+### 6. Deployment (Vercel + Render)
+
+This project uses a separated deployment setup:
+
+- GitHub: source code hosting and auto-deploy trigger
+- Vercel: deploys the `frontend` Vue 3 + Vite application
+- Render: deploys the `backend` Node.js + Express service
+
+Deploy the front end to Vercel:
+
+1. Import the GitHub repository into Vercel
+2. Set `Root Directory` to `frontend`
+3. Set `Framework Preset` to `Vite`
+4. Set `Build Command` to `npm run build`
+5. Set `Output Directory` to `dist`
+6. Add the environment variable below and redeploy
+
+```bash
+VITE_API_BASE_URL=https://your-render-domain.onrender.com/api
+```
+
+Notes:
+
+- The project uses `createWebHistory()`, so [frontend/vercel.json](frontend/vercel.json) is used for SPA rewrites
+- The front end reads the API base URL from [frontend/src/config/env.ts](frontend/src/config/env.ts)
+
+Deploy the back end to Render:
+
+1. Create a new `Web Service`
+2. Connect the same GitHub repository
+3. Set `Root Directory` to `backend`
+4. Set `Build Command` to `npm install && npm run build`
+5. Set `Start Command` to `npm run start`
+6. Configure environment variables in Render
+
+Recommended variables:
+
+```bash
+ALIYUN_API_KEY=your_aliyun_key
+ALIYUN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+ALIYUN_MODEL=qwen-plus
+```
+
+Recommended deployment order:
+
+1. Deploy the back end to Render first and confirm the service URL works
+2. Set `VITE_API_BASE_URL` in Vercel to `https://your-render-domain.onrender.com/api`
+3. Redeploy the front end on Vercel
+
+Request flow after deployment:
+
+1. Users open the Vercel front end
+2. The front end sends API requests to the Render back end
+3. The back end returns login, dashboard, business data, and AI streaming responses
+
 ## 6. Demo Accounts
 
 - `admin / 123456`: super admin
