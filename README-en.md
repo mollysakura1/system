@@ -457,7 +457,49 @@ If the Bailian key is missing, the model configuration is invalid, or the networ
 - Front-end build passed
 - Login, registration, permissions, business management, and AI streaming flows have been verified locally
 
-## 14. Possible Extensions
+## 14. Front-End Performance Optimization Notes
+
+To improve first-screen loading, the project completed four rounds of front-end performance work:
+
+### 1. Problem Diagnosis
+
+- Analyzed build output and browser traces instead of relying on subjective feeling
+- Confirmed that the initial bottlenecks came from oversized dependency chunks, route-guard blocking, and dashboard charts loading too early
+- The largest chunks originally included `echarts`, `element-plus`, and AI markdown/highlight dependencies
+
+### 2. Round 1: Reduce Core Dependency Size
+
+- Replaced global `Element Plus` registration with Vite-based auto import and component auto registration
+- Switched chart rendering from full `echarts` import to `echarts/core` with only the required charts and components
+- Optimized chart resize handling to call `chart.resize()` instead of repeatedly re-rendering the full option
+
+### 3. Round 2: Shorten the First-Screen Request Chain
+
+- Moved the layout inbox request out of the synchronous first-screen path
+- Warmed up messages during browser idle time instead of loading them immediately on layout mount
+- Changed `fetchProfile()` and `fetchMenus()` from serial execution to `Promise.all(...)` in the route guard
+
+### 4. Round 3: Split AI Markdown and Highlight Runtime
+
+- Removed synchronous imports of `marked`, `highlight.js`, and highlight styles from the chat message component
+- Loaded markdown parsing and code highlighting only when assistant messages actually needed rich rendering
+- Replaced full `highlight.js` language loading with `highlight.js/lib/core` plus a small set of registered languages
+
+### 5. Round 4: Lazy-Load Dashboard Charts
+
+- Separated overview metrics from chart data requests
+- Rendered dashboard metrics first and delayed chart loading until the chart area approached the viewport
+- Added chart skeleton placeholders and enabled ECharts initialization only when a chart card became active
+- Removed manual chunk forcing for `element-plus` so the bundler could split it more naturally by usage path
+
+### 6. Result
+
+- Front-end production build still passes after the optimization work
+- The original large AI chunk was split into smaller on-demand chunks
+- `charts` and `element-plus` were significantly reduced compared with the earlier build output
+- The dashboard now renders useful content earlier instead of blocking on chart initialization
+
+## 15. Possible Extensions
 
 - Integrate a real database and ORM
 - Support multi-turn conversational memory
