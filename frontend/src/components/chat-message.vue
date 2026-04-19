@@ -41,8 +41,11 @@ import type { ChatMessageItem } from '../types';
 import { useAppStore } from '../store/modules/app';
 import { useUserStore } from '../store/modules/user';
 
-interface MarkdownRuntime {
+interface MarkedRuntime {
   marked: typeof import('marked').marked;
+}
+
+interface HighlightRuntime {
   highlight: typeof import('highlight.js/lib/core').default;
 }
 
@@ -58,7 +61,9 @@ const appStore = useAppStore();
 const userStore = useUserStore();
 const html = ref('');
 
-let markdownRuntimePromise: Promise<MarkdownRuntime> | null = null;
+let markedRuntimePromise: Promise<MarkedRuntime> | null = null;
+let highlightRuntimePromise: Promise<HighlightRuntime> | null = null;
+let renderToken = 0;
 
 function escapeHtml(value: string) {
   return value
@@ -73,9 +78,78 @@ function renderPlainText(value: string) {
   return escapeHtml(value).replaceAll('\n', '<br />');
 }
 
-async function getMarkdownRuntime(): Promise<MarkdownRuntime> {
-  markdownRuntimePromise ??= Promise.all([
-    import('marked'),
+function countTableColumns(line: string) {
+  return line
+    .split('|')
+    .map((segment) => segment.trim())
+    .filter(Boolean).length;
+}
+
+function looksLikeTableSeparator(line: string) {
+  const normalized = line.trim();
+  return normalized.startsWith('|') && /^(\|\s*:?-{3,}:?\s*)+\|?$/.test(normalized);
+}
+
+function downgradeIncompleteTables(value: string) {
+  const lines = value.split('\n');
+
+  for (let index = 0; index < lines.length - 1; index += 1) {
+    const header = lines[index]?.trim();
+    const separator = lines[index + 1]?.trim();
+
+    if (!header?.startsWith('|') || !looksLikeTableSeparator(separator)) continue;
+
+    let rowIndex = index + 2;
+    while (rowIndex < lines.length && lines[rowIndex].trim().startsWith('|')) {
+      rowIndex += 1;
+    }
+
+    const lastTableRow = rowIndex - 1;
+    const expectedColumns = countTableColumns(header);
+    const shouldDowngrade =
+      rowIndex === lines.length && lastTableRow >= index + 2 && countTableColumns(lines[lastTableRow]) < expectedColumns;
+
+    if (!shouldDowngrade) continue;
+
+    for (let current = index; current < rowIndex; current += 1) {
+      lines[current] = escapeHtml(lines[current]);
+    }
+  }
+
+  return lines.join('\n');
+}
+
+function patchStreamingMarkdown(value: string) {
+  let patched = downgradeIncompleteTables(value);
+
+  const fenceCount = (patched.match(/```/g) || []).length;
+  if (fenceCount % 2 !== 0) {
+    patched += '\n```';
+  }
+
+  const inlineCodeCount = (patched.replaceAll('```', '').match(/`/g) || []).length;
+  if (inlineCodeCount % 2 !== 0) {
+    patched += '`';
+  }
+
+  const strongCount = (patched.match(/\*\*/g) || []).length;
+  if (strongCount % 2 !== 0) {
+    patched += '**';
+  }
+
+  return patched;
+}
+
+async function getMarkedRuntime(): Promise<MarkedRuntime> {
+  markedRuntimePromise ??= import('marked').then((markedModule) => ({
+    marked: markedModule.marked
+  }));
+
+  return markedRuntimePromise;
+}
+
+async function getHighlightRuntime(): Promise<HighlightRuntime> {
+  highlightRuntimePromise ??= Promise.all([
     import('highlight.js/lib/core'),
     import('highlight.js/lib/languages/javascript'),
     import('highlight.js/lib/languages/typescript'),
@@ -87,7 +161,6 @@ async function getMarkdownRuntime(): Promise<MarkdownRuntime> {
     import('highlight.js/styles/github-dark.css')
   ]).then(
     ([
-      markedModule,
       highlightCoreModule,
       javascriptModule,
       typescriptModule,
@@ -114,30 +187,51 @@ async function getMarkdownRuntime(): Promise<MarkdownRuntime> {
       highlight.registerLanguage('plaintext', plaintextModule.default);
       highlight.registerLanguage('text', plaintextModule.default);
 
-      return {
-        marked: markedModule.marked,
-        highlight
-      };
+      return { highlight };
     }
   );
 
-  return markdownRuntimePromise;
+  return highlightRuntimePromise;
 }
 
-async function updateHtml(content: string, role: ChatMessageItem['role']) {
+async function updateHtml(content: string, role: ChatMessageItem['role'], renderMode: ChatMessageItem['renderMode']) {
+  const currentToken = ++renderToken;
+
   if (!content) {
-    html.value = '';
+    if (currentToken === renderToken) {
+      html.value = '';
+    }
     return;
   }
 
   if (role === 'user') {
-    html.value = renderPlainText(content);
+    if (currentToken === renderToken) {
+      html.value = renderPlainText(content);
+    }
     return;
   }
 
-  const { marked, highlight } = await getMarkdownRuntime();
-  const rendered = marked.parse(content, { async: false });
-  html.value = rendered.replace(
+  const { marked } = await getMarkedRuntime();
+
+  if (renderMode === 'streaming') {
+    const rendered = marked.parse(patchStreamingMarkdown(content), {
+      async: false,
+      breaks: true
+    });
+
+    if (currentToken === renderToken) {
+      html.value = rendered;
+    }
+
+    return;
+  }
+
+  const { highlight } = await getHighlightRuntime();
+  const rendered = marked.parse(content, {
+    async: false,
+    breaks: true
+  });
+  const highlightedHtml = rendered.replace(
     /<pre><code class="language-(.*?)">([\s\S]*?)<\/code><\/pre>/g,
     (_, lang, code) => {
       const raw = code.replaceAll('&amp;', '&').replaceAll('&lt;', '<').replaceAll('&gt;', '>');
@@ -147,12 +241,16 @@ async function updateHtml(content: string, role: ChatMessageItem['role']) {
       return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
     }
   );
+
+  if (currentToken === renderToken) {
+    html.value = highlightedHtml;
+  }
 }
 
 watch(
-  () => [props.message.content, props.message.role] as const,
-  async ([content, role]) => {
-    await updateHtml(content || '', role);
+  () => [props.message.content, props.message.role, props.message.renderMode] as const,
+  async ([content, role, renderMode]) => {
+    await updateHtml(content || '', role, renderMode);
   },
   { immediate: true }
 );

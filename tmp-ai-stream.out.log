@@ -1,0 +1,3 @@
+◇ injecting env (4) from backend\.env // tip: ⌘ custom filepath { path: '/custom/path/.env' }
+◇ injecting env (0) from backend\.env // tip: ◈ encrypted .env [www.dotenvx.com]
+backend server running at http://localhost:3001

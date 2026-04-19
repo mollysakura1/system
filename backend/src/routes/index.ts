@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { Router } from 'express';
+import { Router, type Response } from 'express';
 import authRoutes from './auth.js';
 import { authMiddleware, type AuthRequest } from '../middlewares/auth.js';
 import { ok } from '../utils/response.js';
@@ -307,6 +307,179 @@ router.get('/channels', authMiddleware, (_, res) => res.json(ok({ list: channels
 router.get('/logs', authMiddleware, (_, res) => res.json(ok({ list: logs, total: logs.length })));
 router.get('/ai/prompts', authMiddleware, (_, res) => res.json(ok(aiPrompts)));
 
+type AiConversationMessagePayload = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
+const DEFAULT_MAX_CONTEXT_TURNS = 5;
+const DEFAULT_MAX_MESSAGE_CHARS = 600;
+const DEFAULT_MAX_CONTEXT_CHARS = 2400;
+const BUSINESS_MAX_CONTEXT_TURNS = 3;
+const BUSINESS_MAX_CONTEXT_CHARS = 1600;
+
+function normalizeAiConversationMessages(
+  value: unknown,
+  options: {
+    maxTurns?: number;
+    maxMessageChars?: number;
+    maxContextChars?: number;
+  } = {}
+): AiConversationMessagePayload[] {
+  const maxTurns = options.maxTurns ?? DEFAULT_MAX_CONTEXT_TURNS;
+  const maxMessageChars = options.maxMessageChars ?? DEFAULT_MAX_MESSAGE_CHARS;
+  const maxContextChars = options.maxContextChars ?? DEFAULT_MAX_CONTEXT_CHARS;
+  if (!Array.isArray(value)) return [];
+
+  const validMessages = value
+    .filter(
+      (item): item is AiConversationMessagePayload =>
+        typeof item === 'object' &&
+        item !== null &&
+        (item as { role?: unknown }).role !== undefined &&
+        (item as { content?: unknown }).content !== undefined
+    )
+    .map((item) => ({
+      role: (item.role === 'assistant' ? 'assistant' : 'user') as AiConversationMessagePayload['role'],
+      content: String(item.content ?? '').trim()
+    }))
+    .filter((item) => Boolean(item.content));
+
+  const normalized: AiConversationMessagePayload[] = [];
+
+  for (const message of validMessages) {
+    const lastMessage = normalized.at(-1);
+
+    if (!lastMessage) {
+      if (message.role === 'assistant') continue;
+      normalized.push(message);
+      continue;
+    }
+
+    if (lastMessage.role === message.role) {
+      normalized[normalized.length - 1] = message;
+      continue;
+    }
+
+    normalized.push(message);
+  }
+
+  if (normalized.at(-1)?.role === 'user') {
+    normalized.pop();
+  }
+
+  const recentMessages = normalized
+    .slice(-(maxTurns * 2))
+    .map((message) => ({
+      ...message,
+      content: message.content.slice(-maxMessageChars)
+    }));
+
+  const boundedMessages: AiConversationMessagePayload[] = [];
+  let totalChars = 0;
+
+  for (let index = recentMessages.length - 1; index >= 0; index -= 1) {
+    const message = recentMessages[index];
+    if (totalChars + message.content.length > maxContextChars && boundedMessages.length) {
+      break;
+    }
+
+    boundedMessages.unshift(message);
+    totalChars += message.content.length;
+  }
+
+  return boundedMessages;
+}
+
+function parseConversationMessages(value: unknown) {
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      return [];
+    }
+  }
+
+  return value;
+}
+
+function parseBooleanFlag(value: unknown, fallback = true) {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value !== 'string') return fallback;
+
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true;
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false;
+  return fallback;
+}
+
+async function handleAiStream(req: AuthRequest, res: Response) {
+  const source = req.method === 'POST' ? req.body : req.query;
+  const prompt = String(source?.prompt ?? '请基于最近的经营数据给出运营分析').trim();
+  const days = Number(source?.days ?? 30);
+  const merchant = String(source?.merchant ?? 'all').trim();
+  const channel = String(source?.channel ?? 'all').trim();
+  const includeContext = parseBooleanFlag(source?.includeContext, true);
+  const historyMessages = normalizeAiConversationMessages(parseConversationMessages(source?.messages), {
+    maxTurns: includeContext ? BUSINESS_MAX_CONTEXT_TURNS : DEFAULT_MAX_CONTEXT_TURNS,
+    maxContextChars: includeContext ? BUSINESS_MAX_CONTEXT_CHARS : DEFAULT_MAX_CONTEXT_CHARS
+  });
+  const businessContext = includeContext
+    ? buildStructuredAiBusinessContext(req.user!.role, {
+        days: Number.isFinite(days) && days > 0 ? days : 30,
+        merchant,
+        channel
+      })
+    : undefined;
+  const controller = new AbortController();
+  let closed = false;
+
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  const writeEvent = (payload: { type: 'chunk' | 'done'; content?: string }) => {
+    if (closed || res.writableEnded) return;
+    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  };
+
+  const abortStream = () => {
+    if (closed) return;
+    closed = true;
+    controller.abort();
+  };
+
+  req.on('aborted', abortStream);
+  res.on('close', abortStream);
+
+  try {
+    for await (const chunk of streamAiAnalysis({
+      prompt,
+      businessContext,
+      historyMessages,
+      signal: controller.signal
+    })) {
+      if (closed) break;
+      writeEvent({ type: 'chunk', content: chunk });
+    }
+  } catch (error) {
+    if (!closed) {
+      writeEvent({ type: 'chunk', content: toReadableAiError(error) });
+    }
+  } finally {
+    if (!closed) {
+      writeEvent({ type: 'done' });
+      res.end();
+    }
+  }
+}
+
+router.get('/ai/stream', authMiddleware, handleAiStream);
+router.post('/ai/stream', authMiddleware, handleAiStream);
+
+/* Legacy GET-only stream handler kept commented during sliding-window migration.
 router.get('/ai/stream', authMiddleware, async (req: AuthRequest, res) => {
   const prompt = String(req.query.prompt ?? '请基于最近的经营数据给出运营分析').trim();
   const days = Number(req.query.days ?? 30);
@@ -358,5 +531,6 @@ router.get('/ai/stream', authMiddleware, async (req: AuthRequest, res) => {
     }
   }
 });
+*/
 
 export default router;

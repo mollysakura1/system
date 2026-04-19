@@ -80,6 +80,7 @@ import { getAiPromptsApi } from '../../api/ai';
 import { API_BASE_URL } from '../../config/env';
 import { useChatStore } from '../../store/modules/chat';
 import { TOKEN_KEY } from '../../config';
+import { buildConversationWindow, type AiConversationMessage } from '../../utils/ai-context';
 import { streamSse } from '../../utils/sse';
 
 defineOptions({ name: 'AiAssistantPage' });
@@ -94,6 +95,14 @@ const includeBusinessContext = ref(localStorage.getItem('ai-ops-include-context'
 const lastRequest = ref({ prompt: '', includeContext: includeBusinessContext.value });
 const scrollbarRef = ref<InstanceType<typeof ElScrollbar>>();
 const inputRef = ref<InstanceType<typeof ElInput>>();
+const STREAM_FLUSH_INTERVAL = 50;
+const DEFAULT_CONTEXT_TURNS = 5;
+const DEFAULT_CONTEXT_CHARS = 2400;
+const BUSINESS_CONTEXT_TURNS = 3;
+const BUSINESS_CONTEXT_CHARS = 1600;
+
+let streamBuffer = '';
+let streamFlushTimer: number | null = null;
 
 const activeSession = computed(() => chatStore.activeSession);
 const canRetry = computed(() => Boolean(lastRequest.value.prompt && activeSession.value));
@@ -105,6 +114,41 @@ function scrollToBottom() {
   nextTick(() => {
     scrollbarRef.value?.setScrollTop(999999);
   });
+}
+
+function resetStreamBuffer() {
+  streamBuffer = '';
+
+  if (streamFlushTimer !== null) {
+    window.clearTimeout(streamFlushTimer);
+    streamFlushTimer = null;
+  }
+}
+
+function flushAssistantBuffer(
+  currentContent: string,
+  nextContent: string,
+  loading = true,
+  error = false,
+  renderMode: 'streaming' | 'final' = 'streaming'
+) {
+  const mergedContent = currentContent + streamBuffer;
+  resetStreamBuffer();
+  chatStore.updateLastAssistantMessage(mergedContent || nextContent, loading, error, renderMode);
+  scrollToBottom();
+  return mergedContent || nextContent;
+}
+
+function scheduleAssistantFlush(
+  getCurrentContent: () => string,
+  setCurrentContent: (nextContent: string) => void,
+  fallbackContent = ''
+) {
+  if (streamFlushTimer !== null) return;
+
+  streamFlushTimer = window.setTimeout(() => {
+    setCurrentContent(flushAssistantBuffer(getCurrentContent(), fallbackContent, true, false, 'streaming'));
+  }, STREAM_FLUSH_INTERVAL);
 }
 
 function formatTime(value: string) {
@@ -126,6 +170,13 @@ function applyPrompt(prompt: string) {
   inputValue.value = prompt;
 }
 
+function getHistoryWindow() {
+  return buildConversationWindow(activeSession.value?.messages ?? [], {
+    maxTurns: includeBusinessContext.value ? BUSINESS_CONTEXT_TURNS : DEFAULT_CONTEXT_TURNS,
+    maxContextChars: includeBusinessContext.value ? BUSINESS_CONTEXT_CHARS : DEFAULT_CONTEXT_CHARS
+  });
+}
+
 function handleEditMessage(content: string) {
   inputValue.value = content;
   nextTick(() => inputRef.value?.focus());
@@ -134,33 +185,27 @@ function handleEditMessage(content: string) {
 
 async function handleRegenerateMessage(prompt: string) {
   if (!prompt || streaming.value) return;
-  await runStream(prompt);
+  await runStream(prompt, getHistoryWindow());
 }
 
 function stopGenerate() {
   abortController.value?.abort();
-  abortController.value = null;
-  streaming.value = false;
-  if (activeSession.value?.messages.length) {
-    const last = activeSession.value.messages.at(-1);
-    if (last?.role === 'assistant' && last.loading) {
-      chatStore.updateLastAssistantMessage(last.content || t('ai.stopped'), false, false);
-    }
-  }
 }
 
-async function runStream(prompt: string) {
+async function runStream(prompt: string, historyMessages: AiConversationMessage[] = []) {
   lastRequest.value = {
     prompt,
     includeContext: includeBusinessContext.value
   };
   const assistantId = crypto.randomUUID();
+  resetStreamBuffer();
 
   chatStore.appendMessage({
     id: assistantId,
     role: 'assistant',
     content: '',
     loading: true,
+    renderMode: 'streaming',
     createdAt: new Date().toISOString(),
     prompt
   });
@@ -178,6 +223,10 @@ async function runStream(prompt: string) {
       includeContext: includeBusinessContext.value ? '1' : '0'
     });
 
+    if (historyMessages.length) {
+      searchParams.set('messages', JSON.stringify(historyMessages));
+    }
+
     await streamSse(`${API_BASE_URL}/ai/stream?${searchParams.toString()}`, {
       signal: controller.signal,
       headers: {
@@ -186,34 +235,41 @@ async function runStream(prompt: string) {
       },
       onMessage(payload) {
         if (payload.type === 'chunk') {
-          content += payload.content ?? '';
-          chatStore.updateLastAssistantMessage(content, true, false);
-          scrollToBottom();
+          streamBuffer += payload.content ?? '';
+          scheduleAssistantFlush(
+            () => content,
+            (nextContent) => {
+              content = nextContent;
+            },
+            content
+          );
         }
 
         if (payload.type === 'done') {
-          chatStore.updateLastAssistantMessage(content, false, false);
+          content = flushAssistantBuffer(content, content, false, false, 'final');
           streaming.value = false;
           abortController.value = null;
-          scrollToBottom();
         }
       }
     });
   } catch (error) {
+    content = flushAssistantBuffer(content, content, true, false, 'streaming');
     if ((error as Error).name === 'AbortError') {
-      chatStore.updateLastAssistantMessage(content || t('ai.stopped'), false, false);
+      chatStore.updateLastAssistantMessage(content || t('ai.stopped'), false, false, 'final');
     } else {
-      chatStore.updateLastAssistantMessage(content || t('ai.failed'), false, true);
+      chatStore.updateLastAssistantMessage(content || t('ai.failed'), false, true, 'final');
       ElMessage.error(t('ai.streamError'));
     }
     streaming.value = false;
     abortController.value = null;
+    resetStreamBuffer();
   }
 }
 
 async function sendMessage() {
   const prompt = inputValue.value.trim();
   if (!prompt || streaming.value) return;
+  const historyMessages = getHistoryWindow();
 
   chatStore.appendMessage({
     id: crypto.randomUUID(),
@@ -224,13 +280,13 @@ async function sendMessage() {
 
   inputValue.value = '';
   scrollToBottom();
-  await runStream(prompt);
+  await runStream(prompt, historyMessages);
 }
 
 async function regenerate() {
   if (!lastRequest.value.prompt || streaming.value) return;
   includeBusinessContext.value = lastRequest.value.includeContext;
-  await runStream(lastRequest.value.prompt);
+  await runStream(lastRequest.value.prompt, getHistoryWindow());
 }
 
 watch(

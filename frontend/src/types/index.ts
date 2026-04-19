@@ -94,6 +94,7 @@ export interface ChatMessageItem {
   loading?: boolean;
   error?: boolean;
   prompt?: string;
+  renderMode?: 'streaming' | 'final';
   createdAt: string;
 }
 

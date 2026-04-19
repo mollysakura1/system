@@ -1,14 +1,17 @@
 export async function streamSse(
   url: string,
   options: {
+    method?: 'GET' | 'POST';
+    body?: BodyInit | null;
     headers?: Record<string, string>;
     onMessage: (payload: Record<string, string>) => void;
     signal?: AbortSignal;
   }
 ) {
   const response = await fetch(url, {
-    method: 'GET',
+    method: options.method ?? 'GET',
     headers: options.headers,
+    body: options.body,
     signal: options.signal
   });
 

@@ -97,6 +97,8 @@ This project uses a dual-directory front-end and back-end structure:
 - Session list, new session, and session deletion
 - Prompt templates
 - Markdown rendering and code highlighting
+- Sliding-window conversational memory that keeps the latest 5 completed turns by default
+- Automatically reduces the history window when business context is enabled to avoid oversized prompts
 - Supports switching whether business context is sent to the AI
 - User messages support copy and edit
 - Assistant messages support regeneration
@@ -344,10 +346,15 @@ Request flow after deployment:
 
 - `GET /api/ai/prompts` returns prompt templates
 - `GET /api/ai/stream` pushes streaming content via SSE
+- `GET /api/ai/stream` accepts `prompt`, `includeContext`, and serialized `messages` for conversational memory
 - The front end still consumes the same protocol:
   - `data: {"type":"chunk","content":"..."}`
   - `data: {"type":"done"}`
 - Supports stop generation, regeneration, and graceful error fallback
+- The front end trims history before sending it to the back end:
+  - default mode: latest 5 complete turns
+  - business-context mode: latest 3 complete turns
+  - both sides apply message-length and total-context budgets as a safety fallback
 
 ### 5. AI Reads Business Data
 
@@ -484,6 +491,11 @@ To improve first-screen loading, the project completed four rounds of front-end 
 - Removed synchronous imports of `marked`, `highlight.js`, and highlight styles from the chat message component
 - Loaded markdown parsing and code highlighting only when assistant messages actually needed rich rendering
 - Replaced full `highlight.js` language loading with `highlight.js/lib/core` plus a small set of registered languages
+- Added buffered streaming updates so SSE chunks are merged in small batches instead of forcing a full message render on every chunk
+- Split chat rendering into streaming mode and final mode:
+  - streaming mode uses lighter markdown rendering
+  - final mode applies complete markdown parsing and code highlighting after completion
+- Added lightweight markdown patching during streaming to tolerate unclosed code fences, backticks, and other temporary incomplete syntax
 
 ### 5. Round 4: Lazy-Load Dashboard Charts
 
@@ -491,6 +503,7 @@ To improve first-screen loading, the project completed four rounds of front-end 
 - Rendered dashboard metrics first and delayed chart loading until the chart area approached the viewport
 - Added chart skeleton placeholders and enabled ECharts initialization only when a chart card became active
 - Removed manual chunk forcing for `element-plus` so the bundler could split it more naturally by usage path
+- Fixed the first-refresh chart sizing issue by waiting for layout stabilization and combining `ResizeObserver` with scheduled chart resize handling
 
 ### 6. Result
 
@@ -502,7 +515,7 @@ To improve first-screen loading, the project completed four rounds of front-end 
 ## 15. Possible Extensions
 
 - Integrate a real database and ORM
-- Support multi-turn conversational memory
+- Upgrade the current sliding-window memory to "recent turns + summary" hybrid memory
 - Add finer-grained data permissions and tenant isolation
 - Add a report center, export center, and chart drill-down
 - Improve unit tests, end-to-end tests, and code quality tooling

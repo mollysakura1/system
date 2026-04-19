@@ -31,12 +31,13 @@ function getScopedChatKey(accountId: string) {
   return `${CHAT_CACHE_KEY}:${accountId || 'guest'}`;
 }
 
-function normalizeSessions(sessions: ChatSession[]) {
+function normalizeSessions(sessions: ChatSession[]): ChatSession[] {
   return sessions.map((session) => ({
     ...session,
     messages: session.messages.map((message) => ({
       ...message,
-      loading: false
+      loading: false,
+      renderMode: 'final' as const
     }))
   }));
 }
@@ -101,7 +102,12 @@ export const useChatStore = defineStore('chat', {
       session.updatedAt = new Date().toISOString();
       this.persist();
     },
-    updateLastAssistantMessage(content: string, loading = true, error = false) {
+    updateLastAssistantMessage(
+      content: string,
+      loading = true,
+      error = false,
+      renderMode: ChatMessageItem['renderMode'] = 'final'
+    ) {
       const session = this.activeSession;
       if (!session) return;
       const message = [...session.messages].reverse().find((item) => item.role === 'assistant');
@@ -109,6 +115,7 @@ export const useChatStore = defineStore('chat', {
       message.content = content;
       message.loading = loading;
       message.error = error;
+      message.renderMode = renderMode;
       session.updatedAt = new Date().toISOString();
       this.persist();
     }
