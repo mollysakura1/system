@@ -6,7 +6,7 @@
         <div class="page-subtitle">{{ t('dashboard.subtitle') }}</div>
       </div>
       <div style="display: flex; gap: 12px">
-        <el-select v-model="filters.days" style="width: 140px" @change="fetchCharts">
+        <el-select v-model="filters.days" style="width: 140px" @change="handleFilterChange">
           <el-option :label="t('dashboard.last7')" :value="7" />
           <el-option :label="t('dashboard.last15')" :value="15" />
           <el-option :label="t('dashboard.last30')" :value="30" />
@@ -23,10 +23,10 @@
       </div>
     </div>
 
-    <div class="chart-grid">
-      <ChartCard :title="t('dashboard.orderGmvTrend')" :subtitle="t('dashboard.orderGmvTrendSub')" :option="lineOption" />
-      <ChartCard :title="t('dashboard.categorySales')" :subtitle="t('dashboard.categorySalesSub')" :option="barOption" />
-      <ChartCard :title="t('dashboard.userSources')" :subtitle="t('dashboard.userSourcesSub')" :option="pieOption" />
+    <div ref="chartGridRef" class="chart-grid">
+      <ChartCard :title="t('dashboard.orderGmvTrend')" :subtitle="t('dashboard.orderGmvTrendSub')" :option="lineOption" :active="chartsVisible" :loading="chartLoading" />
+      <ChartCard :title="t('dashboard.categorySales')" :subtitle="t('dashboard.categorySalesSub')" :option="barOption" :active="chartsVisible" :loading="chartLoading" />
+      <ChartCard :title="t('dashboard.userSources')" :subtitle="t('dashboard.userSourcesSub')" :option="pieOption" :active="chartsVisible" :loading="chartLoading" />
       <div class="page-card quick-card">
         <div class="quick-title">{{ t('dashboard.todayFocus') }}</div>
         <ul>
@@ -41,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import ChartCard from '../../components/chart-card.vue';
 import { getChartsApi, getOverviewApi } from '../../api/dashboard';
@@ -54,7 +54,11 @@ const { t } = useI18n();
 const filters = reactive({ days: 7 });
 const overview = ref<ChartOverview>();
 const charts = ref<ChartData>();
+const chartGridRef = ref<HTMLDivElement>();
+const chartsVisible = ref(false);
+const chartLoading = ref(false);
 const baseAxis = { axisLine: { lineStyle: { color: '#94a3b8' } }, axisLabel: { color: '#64748b' } };
+let chartObserver: IntersectionObserver | null = null;
 
 const localizedMetrics = computed(() =>
   (overview.value?.metrics ?? []).map((item) => ({
@@ -86,10 +90,53 @@ const pieOption = computed(() => ({
   series: [{ type: 'pie', radius: ['45%', '72%'], data: charts.value?.userSources ?? [] }]
 }));
 
-async function fetchCharts() {
-  const [{ data: overviewData }, { data: chartData }] = await Promise.all([getOverviewApi(), getChartsApi(filters.days)]);
-  overview.value = overviewData;
-  charts.value = chartData;
+async function fetchOverview() {
+  const { data } = await getOverviewApi();
+  overview.value = data;
+}
+
+async function fetchCharts(force = false) {
+  if (!chartsVisible.value) {
+    chartsVisible.value = true;
+  }
+
+  if (chartLoading.value) return;
+  if (charts.value && !force) return;
+
+  chartLoading.value = true;
+  try {
+    const { data } = await getChartsApi(filters.days);
+    charts.value = data;
+  } finally {
+    chartLoading.value = false;
+  }
+}
+
+function warmupChartsOnVisible() {
+  if (!chartGridRef.value || chartsVisible.value) return;
+
+  const loadCharts = async () => {
+    chartsVisible.value = true;
+    await fetchCharts(true);
+  };
+
+  if (typeof window.IntersectionObserver !== 'function') {
+    void loadCharts();
+    return;
+  }
+
+  chartObserver = new window.IntersectionObserver((entries) => {
+    if (!entries.some((entry) => entry.isIntersecting)) return;
+    chartObserver?.disconnect();
+    chartObserver = null;
+    void loadCharts();
+  }, { rootMargin: '180px 0px' });
+
+  chartObserver.observe(chartGridRef.value);
+}
+
+function handleFilterChange() {
+  void fetchCharts(true);
 }
 
 function handleExport() {
@@ -101,7 +148,15 @@ function handleExport() {
   })));
 }
 
-onMounted(fetchCharts);
+onMounted(async () => {
+  await fetchOverview();
+  warmupChartsOnVisible();
+});
+
+onBeforeUnmount(() => {
+  chartObserver?.disconnect();
+  chartObserver = null;
+});
 </script>
 
 <style scoped>

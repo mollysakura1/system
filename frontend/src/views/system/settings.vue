@@ -54,7 +54,8 @@ const notifications = reactive({
   daily: true
 });
 
-function handleLanguageChange(value: 'zh' | 'en') {
+function handleLanguageChange(value: string | number | boolean | undefined) {
+  if (value !== 'zh' && value !== 'en') return;
   appStore.setLanguage(value);
   locale.value = value;
   ElMessage.success(value === 'zh' ? t('common.switchedToChinese') : t('common.switchedToEnglish'));

@@ -33,16 +33,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { CopyDocument, EditPen, RefreshRight } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
-import { marked } from 'marked';
-import hljs from 'highlight.js';
-import 'highlight.js/styles/github-dark.css';
 import type { ChatMessageItem } from '../types';
 import { useAppStore } from '../store/modules/app';
 import { useUserStore } from '../store/modules/user';
+
+interface MarkdownRuntime {
+  marked: typeof import('marked').marked;
+  highlight: typeof import('highlight.js/lib/core').default;
+}
 
 const props = defineProps<{ message: ChatMessageItem }>();
 
@@ -54,6 +56,106 @@ defineEmits<{
 const { t } = useI18n();
 const appStore = useAppStore();
 const userStore = useUserStore();
+const html = ref('');
+
+let markdownRuntimePromise: Promise<MarkdownRuntime> | null = null;
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function renderPlainText(value: string) {
+  return escapeHtml(value).replaceAll('\n', '<br />');
+}
+
+async function getMarkdownRuntime(): Promise<MarkdownRuntime> {
+  markdownRuntimePromise ??= Promise.all([
+    import('marked'),
+    import('highlight.js/lib/core'),
+    import('highlight.js/lib/languages/javascript'),
+    import('highlight.js/lib/languages/typescript'),
+    import('highlight.js/lib/languages/json'),
+    import('highlight.js/lib/languages/bash'),
+    import('highlight.js/lib/languages/xml'),
+    import('highlight.js/lib/languages/css'),
+    import('highlight.js/lib/languages/plaintext'),
+    import('highlight.js/styles/github-dark.css')
+  ]).then(
+    ([
+      markedModule,
+      highlightCoreModule,
+      javascriptModule,
+      typescriptModule,
+      jsonModule,
+      bashModule,
+      xmlModule,
+      cssModule,
+      plaintextModule
+    ]) => {
+      const highlight = highlightCoreModule.default;
+
+      highlight.registerLanguage('javascript', javascriptModule.default);
+      highlight.registerLanguage('js', javascriptModule.default);
+      highlight.registerLanguage('typescript', typescriptModule.default);
+      highlight.registerLanguage('ts', typescriptModule.default);
+      highlight.registerLanguage('json', jsonModule.default);
+      highlight.registerLanguage('bash', bashModule.default);
+      highlight.registerLanguage('shell', bashModule.default);
+      highlight.registerLanguage('sh', bashModule.default);
+      highlight.registerLanguage('html', xmlModule.default);
+      highlight.registerLanguage('xml', xmlModule.default);
+      highlight.registerLanguage('vue', xmlModule.default);
+      highlight.registerLanguage('css', cssModule.default);
+      highlight.registerLanguage('plaintext', plaintextModule.default);
+      highlight.registerLanguage('text', plaintextModule.default);
+
+      return {
+        marked: markedModule.marked,
+        highlight
+      };
+    }
+  );
+
+  return markdownRuntimePromise;
+}
+
+async function updateHtml(content: string, role: ChatMessageItem['role']) {
+  if (!content) {
+    html.value = '';
+    return;
+  }
+
+  if (role === 'user') {
+    html.value = renderPlainText(content);
+    return;
+  }
+
+  const { marked, highlight } = await getMarkdownRuntime();
+  const rendered = marked.parse(content, { async: false });
+  html.value = rendered.replace(
+    /<pre><code class="language-(.*?)">([\s\S]*?)<\/code><\/pre>/g,
+    (_, lang, code) => {
+      const raw = code.replaceAll('&amp;', '&').replaceAll('&lt;', '<').replaceAll('&gt;', '>');
+      const highlighted = highlight.highlight(raw, {
+        language: highlight.getLanguage(lang) ? lang : 'plaintext'
+      }).value;
+      return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+    }
+  );
+}
+
+watch(
+  () => [props.message.content, props.message.role] as const,
+  async ([content, role]) => {
+    await updateHtml(content || '', role);
+  },
+  { immediate: true }
+);
 
 const displayName = computed(() => {
   if (props.message.role === 'assistant') {
@@ -64,17 +166,6 @@ const displayName = computed(() => {
 });
 
 const showRegenerate = computed(() => props.message.role === 'assistant' && !props.message.loading && Boolean(props.message.prompt));
-
-const html = computed(() =>
-  marked.parse(props.message.content || '', { async: false }).replace(
-    /<pre><code class="language-(.*?)">([\s\S]*?)<\/code><\/pre>/g,
-    (_, lang, code) => {
-      const raw = code.replaceAll('&amp;', '&').replaceAll('&lt;', '<').replaceAll('&gt;', '>');
-      const highlighted = hljs.highlight(raw, { language: hljs.getLanguage(lang) ? lang : 'plaintext' }).value;
-      return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
-    }
-  )
-);
 
 async function handleCopy() {
   await navigator.clipboard.writeText(props.message.content || '');

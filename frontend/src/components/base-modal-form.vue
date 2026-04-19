@@ -4,7 +4,8 @@
       <el-form-item v-for="field in fields" :key="field.prop" :label="field.label">
         <el-input
           v-if="field.type === 'input' || field.type === 'textarea' || !field.type"
-          v-model="formModel[field.prop]"
+          :model-value="String(formModel[field.prop] ?? '')"
+          @update:model-value="updateTextField(field.prop, $event)"
           :type="field.type === 'textarea' ? 'textarea' : 'text'"
           :placeholder="field.placeholder"
         />
@@ -44,4 +45,8 @@ const visible = computed({
   get: () => props.modelValue,
   set: (value: boolean) => emit('update:modelValue', value)
 });
+
+function updateTextField(prop: string, value: string) {
+  props.formModel[prop] = value;
+}
 </script>

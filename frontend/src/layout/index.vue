@@ -109,7 +109,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Fold, Message } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
 import { ElMessage } from 'element-plus';
@@ -129,6 +129,8 @@ const messageStore = useMessageStore();
 const messageVisible = ref(false);
 const breadcrumbs = computed(() => route.matched.filter((item) => item.meta?.title));
 const isEn = computed(() => appStore.language === 'en');
+let idleTimer: number | null = null;
+let idleCallbackId: number | null = null;
 const profileText = computed(() => (isEn.value ? 'Profile Settings' : '个人设置'));
 const messageTitle = computed(() => (isEn.value ? 'Inbox' : '站内信'));
 const markReadText = computed(() => (isEn.value ? 'Mark as read' : '标记已读'));
@@ -166,9 +168,34 @@ function closeTab(path: string) {
   router.push(fallback.path);
 }
 
-onMounted(async () => {
-  if (userStore.accessToken) {
-    await messageStore.fetchMessages(true);
+function scheduleMessageWarmup() {
+  if (!userStore.accessToken || messageStore.initialized) return;
+
+  const runWarmup = () => {
+    void messageStore.fetchMessages().catch(() => {
+      // Ignore warmup failures and let the drawer fetch on demand.
+    });
+  };
+
+  if (typeof window.requestIdleCallback === 'function') {
+    idleCallbackId = window.requestIdleCallback(runWarmup, { timeout: 2000 });
+    return;
+  }
+
+  idleTimer = window.setTimeout(runWarmup, 1200);
+}
+
+onMounted(() => {
+  scheduleMessageWarmup();
+});
+
+onBeforeUnmount(() => {
+  if (idleCallbackId !== null && typeof window.cancelIdleCallback === 'function') {
+    window.cancelIdleCallback(idleCallbackId);
+  }
+
+  if (idleTimer !== null) {
+    window.clearTimeout(idleTimer);
   }
 });
 </script>
