@@ -169,7 +169,18 @@ Idempotency-Key: <uuid>
 
 ### 1. 流式输出
 
-后端 `GET /api/ai/stream` 和 `POST /api/ai/stream` 通过 `text/event-stream` 推送流式内容。
+前端通过 `POST /api/ai/stream` 发起 AI 流式请求，后端以 `text/event-stream` 返回 SSE 数据。请求体使用 JSON，携带当前问题、会话、最近上下文和是否发送运营上下文：
+
+```json
+{
+  "prompt": "分析最近订单趋势",
+  "includeContext": true,
+  "sessionId": "session-id",
+  "messages": []
+}
+```
+
+因为该接口是登录后的 `POST` 写请求，前端会同时携带 `Authorization: Bearer <accessToken>`、CSRF token、nonce、防重放时间戳和 `Idempotency-Key`。
 
 前端消费的 SSE 事件包括：
 
@@ -360,7 +371,6 @@ npm run check
 - `PATCH /api/messages/:id`
 - `POST /api/permission-requests`
 - `GET /api/ai/prompts`
-- `GET /api/ai/stream`
 - `POST /api/ai/stream`
 - `GET /api/ai/sessions`
 - `POST /api/ai/sessions`

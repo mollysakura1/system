@@ -81,6 +81,7 @@ import { API_BASE_URL } from '../../config/env';
 import { useChatStore } from '../../store/modules/chat';
 import { useUserStore } from '../../store/modules/user';
 import { buildConversationWindow, type AiConversationMessage } from '../../utils/ai-context';
+import { buildWriteSecurityHeaders } from '../../utils/security';
 import { streamSse } from '../../utils/sse';
 
 defineOptions({ name: 'AiAssistantPage' });
@@ -219,22 +220,23 @@ async function runStream(prompt: string, historyMessages: AiConversationMessage[
   let content = '';
 
   try {
-    const searchParams = new URLSearchParams({
-      prompt,
-      includeContext: includeBusinessContext.value ? '1' : '0',
-      sessionId: activeSession.value?.id ?? ''
-    });
+    const securityHeaders = await buildWriteSecurityHeaders('/ai/stream', 'POST');
 
-    if (historyMessages.length) {
-      searchParams.set('messages', JSON.stringify(historyMessages));
-    }
-
-    await streamSse(`${API_BASE_URL}/ai/stream?${searchParams.toString()}`, {
+    await streamSse(`${API_BASE_URL}/ai/stream`, {
+      method: 'POST',
       signal: controller.signal,
       headers: {
         Accept: 'text/event-stream',
-        Authorization: `Bearer ${userStore.accessToken}`
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${userStore.accessToken}`,
+        ...securityHeaders
       },
+      body: JSON.stringify({
+        prompt,
+        includeContext: includeBusinessContext.value,
+        sessionId: activeSession.value?.id ?? '',
+        messages: historyMessages
+      }),
       onMessage(payload) {
         if (payload.type === 'chunk') {
           streamBuffer += payload.content ?? '';

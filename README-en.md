@@ -169,7 +169,18 @@ Repeated POST requests from the same user to the same path with the same idempot
 
 ### 1. Streaming Output
 
-The back end exposes `GET /api/ai/stream` and `POST /api/ai/stream` with `text/event-stream`.
+The front end starts AI streaming through `POST /api/ai/stream`, and the back end returns SSE data with `text/event-stream`. The request body is JSON and includes the current prompt, session, recent context, and whether business context should be sent:
+
+```json
+{
+  "prompt": "Analyze recent order trends",
+  "includeContext": true,
+  "sessionId": "session-id",
+  "messages": []
+}
+```
+
+Because this endpoint is an authenticated `POST` request, the front end also sends `Authorization: Bearer <accessToken>`, CSRF token, nonce, replay-protection timestamp, and `Idempotency-Key`.
 
 SSE events consumed by the front end:
 
@@ -360,7 +371,6 @@ Default URLs:
 - `PATCH /api/messages/:id`
 - `POST /api/permission-requests`
 - `GET /api/ai/prompts`
-- `GET /api/ai/stream`
 - `POST /api/ai/stream`
 - `GET /api/ai/sessions`
 - `POST /api/ai/sessions`
