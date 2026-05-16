@@ -1,127 +1,179 @@
 # AI 智能运营管理平台
 
-一个前后端分离的企业级中后台项目，定位为“AI 驱动的 SaaS 商家运营管理平台”。项目覆盖登录鉴权、RBAC 权限系统、动态路由、经营看板、业务中心、站内信、个人设置、国际化，以及基于阿里云百炼的真实流式 AI 助手能力。
+一个前后端分离的企业级中后台项目，定位为“AI 驱动的 SaaS 商家运营管理平台”。项目覆盖登录鉴权、RBAC 权限系统、动态路由、经营看板、业务中心、站内信、个人设置、国际化，以及基于阿里云百炼兼容接口的真实流式 AI 助手能力。
 
 ## 一、项目概览
 
 - 前端：`Vue 3 + TypeScript + Vite + Pinia + Vue Router + Element Plus + Axios + ECharts`
-- 后端：`Node.js + Express + TypeScript + JWT + SSE`
-- AI 能力：后端接入阿里云百炼兼容接口，前端通过 SSE 消费流式输出
-- 数据层：以本地持久化和内存数据为主，优先保证完整功能链路与可运行性
+- 后端：`Node.js + Express + TypeScript + JWT + SSE + SQLite`
+- AI：后端接入阿里云百炼兼容接口，前端通过 SSE 消费流式输出
+- 数据层：后端使用 SQLite 持久化业务数据、系统数据、站内信、AI 会话和摘要记忆
+- 缓存策略：后端 SQLite 是真实数据源；前端系统管理和业务中心只使用 Pinia 当前会话缓存；AI 聊天记录采用“后端为准，本地加速和兜底”
+
+默认 SQLite 文件位置：
+
+```text
+backend/data/app.sqlite
+```
+
+该文件是二进制 SQLite 数据库文件，不适合用记事本打开。建议使用 DB Browser for SQLite 或 `sqlite3` 查看。
 
 ## 二、核心功能
 
 ### 1. 登录与鉴权
 
-- 支持用户名、密码、图形验证码登录
-- 支持 `accessToken + refreshToken`
-- Axios 请求层自动注入 token
-- 401 自动刷新 token，刷新失败后回到登录页
-- 支持 1 小时无操作自动失效并重新登录
-- 已实现路由守卫、登出清理、异常状态统一处理
+- 用户名、密码、图形验证码登录
+- 注册账号
+- Cookie 会话模式，后端签发 access token 和 refresh token
+- 401 自动刷新 token，刷新失败后清理登录态并跳转登录页
+- 支持 1 小时无操作自动失效
+- 路由守卫、退出登录和异常状态统一处理
 
 ### 2. RBAC 权限系统
 
 - 支持 `super-admin`、`operator`、`analyst`、`merchant` 四类角色
-- 后端按角色返回菜单树与权限点
+- 后端按角色返回菜单树和权限点
 - 前端基于菜单动态注入路由
 - 支持菜单级、页面级、按钮级权限控制
-- 支持自定义权限指令 `v-permission`
+- 支持 `v-permission` 自定义权限指令
+- 用户管理和角色管理数据均写入 SQLite
 
-### 3. 经营看板与业务中心
+### 3. 系统管理
 
-- Dashboard 经营总览指标卡
-- 订单趋势与 GMV 趋势图
+- 用户管理：新增、查看、编辑、删除用户
+- 角色管理：新增、查看、编辑、删除角色，支持权限配置
+- 菜单管理：菜单树展示和角色菜单查看
+- 日志管理：日志列表查看
+- 系统设置：主题、语言等基础配置
+
+系统管理数据策略：
+
+- 页面首次需要数据时从后端接口拉取
+- 当前浏览器会话内使用 Pinia 缓存
+- 不再使用 `localStorage` 持久化系统管理数据
+
+### 4. 经营看板与业务中心
+
+- Dashboard 经营总览指标
+- 订单趋势、GMV 趋势图
 - 品类销售柱状图、用户来源饼图
-- 商家、商品、订单、活动、优惠券、渠道等业务管理
-- 支持筛选、联动、CSV 导出和本地持久化演示数据
+- 商家、商品、订单、活动、优惠券、渠道管理
+- 业务中心新增、编辑、删除均通过 RESTful API 写入 SQLite
+- 前端当前会话内使用 Pinia 缓存，页面刷新后重新从后端拉取
 
-### 4. 站内信与个人中心
+### 5. 站内信与个人中心
 
 - 顶栏站内信入口与未读红点
 - 角色申请和权限变更消息通知
 - 个人资料、头像、手机号、邮箱、地址、密码修改
+- 站内信数据写入 SQLite
 
-### 5. AI 运营助手
+### 6. AI 运营助手
 
 - 会话列表、新建会话、删除会话
 - Prompt 模板
 - Markdown 渲染与代码高亮
 - 停止生成、重新生成、错误提示
-- 会话记录按账号隔离缓存
 - 支持切换是否发送运营上下文
-- 支持基于最近几轮消息的滑动窗口上下文记忆
+- 支持最近对话窗口 + 后端摘要记忆
+- 支持后端受控工具调用，自动检索 SQLite 业务数据
+- AI 会话、消息和摘要记忆写入 SQLite
+- 本地聊天缓存仅用于快速显示和后端失败兜底
 
-## 三、AI 助手实现说明
+## 三、数据持久化与缓存策略
+
+### 1. SQLite 数据库
+
+后端启动时会初始化 SQLite 表结构，并在首次运行时从原始 mock 数据写入种子数据。
+
+主要数据表包括：
+
+- `users`
+- `credentials`
+- `site_messages`
+- `resource_items`
+- `ai_prompts`
+- `ai_chat_sessions`
+- `ai_chat_messages`
+
+其中：
+
+- 用户数据写入 `users` 和 `credentials`
+- 商家、商品、订单、活动、优惠券、渠道、角色等通用资源写入 `resource_items`
+- 站内信写入 `site_messages`
+- AI 会话写入 `ai_chat_sessions`
+- AI 消息写入 `ai_chat_messages`
+- AI 会话摘要存储在 `ai_chat_sessions.summary`
+
+### 2. 前端缓存策略
+
+- 系统管理：后端为准，Pinia 当前会话缓存
+- 业务中心：后端为准，Pinia 当前会话缓存
+- AI 聊天：后端为准，本地缓存加速和兜底
+- 主题、语言、AI 是否发送上下文等用户偏好仍使用 `localStorage`
+
+## 四、AI 助手实现说明
 
 ### 1. 流式输出
 
-- 后端 `GET /api/ai/stream` 通过 `text/event-stream` 推送流式内容
-- 前端继续消费以下协议：
-  - `data: {"type":"chunk","content":"..."}`
-  - `data: {"type":"done"}`
-- 支持停止生成、重试与可读错误回退
+后端 `GET /api/ai/stream` 和 `POST /api/ai/stream` 通过 `text/event-stream` 推送流式内容。
 
-### 2. 运营上下文注入
+前端消费的 SSE 事件包括：
 
-在开启“发送运营上下文”时，后端会在调用模型前拼接业务上下文，包括：
+```text
+data: {"type":"tools","tools":[...]}
+data: {"type":"chunk","content":"..."}
+data: {"type":"done"}
+```
 
-- 经营总览指标
-- 最近数日图表数据
-- 当前筛选条件
-- 基于筛选条件生成的业务摘要
+### 2. 后端受控工具调用
 
-关闭该选项时，只发送用户问题，按纯问答模式工作。
+AI 工具调用在后端实现，不允许模型直接执行 SQL。
 
-### 3. 滑动窗口记忆
+流程：
 
-项目当前已实现滑动窗口上下文记忆：
+1. 前端发送用户问题、`sessionId`、最近消息和 `includeContext`
+2. 后端根据问题关键词选择业务工具
+3. 工具从 SQLite 读取受控业务数据
+4. 后端生成结构化工具结果
+5. 工具结果、会话摘要、最近消息和当前问题一起传给模型
+6. 模型基于工具结果生成流式回答
 
-- 前端发送问题前，会从当前会话中提取最近的完整问答作为历史上下文
-- 默认保留最近 `5` 轮完整问答
-- 开启“发送运营上下文”后，历史窗口自动降级为最近 `3` 轮
-- 前后端两侧都会再次做规范化与预算限制：
-  - 过滤未完成、报错或空消息
-  - 消除连续同角色消息
-  - 限制单条消息长度
-  - 限制总上下文长度
+当前支持的业务检索范围：
 
-模型输入的组织顺序为：
+- 订单：订单数、金额、状态、渠道、商家聚合
+- 商家：商家数、状态、渠道、GMV
+- 商品：品类、销量、低库存
+- 活动：类型、状态、预算
+- 优惠券：状态、使用量
+- 渠道：类型、状态
+- Dashboard 总览和趋势数据
 
-1. system prompt
-2. 可选运营业务上下文
-3. 最近几轮历史消息
-4. 当前用户问题
+“发送运营上下文”开启时会启用工具调用；关闭后只进行普通对话、会话摘要和最近消息上下文。
 
-## 四、前端性能优化
+### 3. 会话摘要记忆
 
-项目围绕首屏加载和 AI 流式体验做过多轮优化：
+每次 AI 最终回复保存到后端后，后端会把：
 
-### 1. 依赖体积优化
+- 旧摘要
+- 最新用户问题
+- 最新 assistant 回复
 
-- `Element Plus` 从整库注册改为按需自动导入
-- `ECharts` 从整包引入改为 `echarts/core`
-- `highlight.js` 改为核心包加常用语言按需注册
+合并成新的简洁摘要，并更新到：
 
-### 2. 首屏链路优化
+```text
+ai_chat_sessions.summary
+```
 
-- 站内信请求从 layout 首屏同步路径移除，改为浏览器空闲时预热
-- `fetchProfile()` 与 `fetchMenus()` 从串行改为并行
-- Dashboard 指标先渲染，图表延后到接近视口时再加载
+后续同一会话继续提问时，后端会自动读取该摘要并传给 AI。
 
-### 3. AI 渲染优化
+### 4. 最近消息窗口
 
-- SSE chunk 先进入 buffer，再按小批次 flush，避免每个 chunk 都触发完整渲染
-- 消息渲染拆分为：
-  - `streaming`：流式阶段轻量渲染
-  - `final`：完成后完整 Markdown 与代码高亮
-- 流式阶段对未闭合 Markdown 做轻量容错补全，例如代码块 fence、反引号和粗体标记
+前端发送问题前，会从当前会话提取最近完整问答作为历史上下文：
 
-### 4. 图表首屏缩放修复
-
-- 修复了页面刷新后图表偶发缩在左上角、需要调整窗口大小才恢复的问题
-- 现在会在容器尺寸稳定后再初始化图表
-- 结合 `ResizeObserver` 与调度后的 `resize()` 自动修正图表尺寸
+- 默认保留最近 5 轮完整问答
+- 开启运营上下文时保留最近 3 轮完整问答
+- 前后端都会限制单条消息和总上下文长度
 
 ## 五、项目结构
 
@@ -145,6 +197,7 @@ vue3-system
 │  └─ vite.config.ts
 ├─ backend
 │  ├─ src
+│  │  ├─ database
 │  │  ├─ lib
 │  │  ├─ middlewares
 │  │  ├─ mock
@@ -152,6 +205,7 @@ vue3-system
 │  │  ├─ services
 │  │  ├─ types
 │  │  └─ utils
+│  ├─ data
 │  └─ .env.example
 ├─ README.md
 └─ README-en.md
@@ -176,9 +230,13 @@ ALIYUN_MODEL=qwen-plus
 PORT=3001
 ```
 
-### 3. 启动项目
+可选 SQLite 路径：
 
-同时启动前后端：
+```bash
+SQLITE_DB_PATH=./data/app.sqlite
+```
+
+### 3. 启动项目
 
 ```bash
 npm run dev
@@ -191,10 +249,11 @@ npm run dev:frontend
 npm run dev:backend
 ```
 
-### 4. 构建项目
+### 4. 构建与检查
 
 ```bash
 npm run build
+npm run check
 ```
 
 默认访问地址：
@@ -202,62 +261,14 @@ npm run build
 - 前端：`http://localhost:5173`
 - 后端：`http://localhost:3001`
 
-## 七、部署说明（Vercel + Render）
-
-当前项目采用前后端分离部署：
-
-- GitHub：代码托管与自动部署触发
-- Vercel：部署 `frontend` 前端 Vue 3 + Vite 应用
-- Render：部署 `backend` 后端 Node.js + Express 服务
-
-### Vercel 前端部署配置
-
-1. 导入 GitHub 仓库
-2. `Root Directory` 设为 `frontend`
-3. `Framework Preset` 设为 `Vite`
-4. `Build Command` 设为 `npm run build`
-5. `Output Directory` 设为 `dist`
-6. 配置环境变量并重新部署：
-
-```bash
-VITE_API_BASE_URL=https://your-render-domain.onrender.com/api
-```
-
-说明：
-
-- 项目使用 `createWebHistory()`，因此通过 `frontend/vercel.json` 处理 SPA 路由回退
-- 前端通过 `frontend/src/config/env.ts` 读取 API 基础地址
-
-### Render 后端部署配置
-
-1. 新建 `Web Service`
-2. 连接同一个 GitHub 仓库
-3. `Root Directory` 设为 `backend`
-4. `Build Command` 设为 `npm install && npm run build`
-5. `Start Command` 设为 `npm run start`
-6. 在 Render 后台配置环境变量
-
-推荐环境变量：
-
-```bash
-ALIYUN_API_KEY=your_aliyun_key
-ALIYUN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-ALIYUN_MODEL=qwen-plus
-```
-
-推荐部署顺序：
-
-1. 先部署 Render 后端并确认服务地址可用
-2. 在 Vercel 中配置 `VITE_API_BASE_URL`
-3. 再部署或重部署前端
-
-## 八、后端主要接口
+## 七、后端主要接口
 
 ### 鉴权
 
 - `POST /api/auth/login`
 - `POST /api/auth/register`
 - `POST /api/auth/refresh`
+- `POST /api/auth/logout`
 - `GET /api/auth/captcha`
 
 ### 用户与权限
@@ -267,35 +278,78 @@ ALIYUN_MODEL=qwen-plus
 - `GET /api/menus`
 - `GET /api/users`
 - `POST /api/users`
+- `GET /api/users/:id`
 - `PATCH /api/users/:id`
 - `DELETE /api/users/:id`
 - `GET /api/roles`
+- `POST /api/roles`
+- `GET /api/roles/:id`
+- `PATCH /api/roles/:id`
+- `DELETE /api/roles/:id`
 
-### Dashboard 与业务
+### Dashboard 与业务中心
 
 - `GET /api/dashboard/overview`
 - `GET /api/dashboard/charts`
 - `GET /api/merchants`
-- `GET /api/products`
-- `GET /api/orders`
-- `GET /api/activities`
-- `GET /api/coupons`
-- `GET /api/channels`
-- `GET /api/logs`
+- `POST /api/merchants`
+- `GET /api/merchants/:id`
+- `PATCH /api/merchants/:id`
+- `DELETE /api/merchants/:id`
+
+`products`、`orders`、`activities`、`coupons`、`channels` 同样支持集合和单项 RESTful CRUD。
 
 ### 消息与 AI
 
 - `GET /api/messages`
-- `POST /api/messages/:id/read`
-- `POST /api/messages/permission-request`
+- `GET /api/messages/:id`
+- `PATCH /api/messages/:id`
+- `POST /api/permission-requests`
 - `GET /api/ai/prompts`
 - `GET /api/ai/stream`
+- `POST /api/ai/stream`
+- `GET /api/ai/sessions`
+- `POST /api/ai/sessions`
+- `GET /api/ai/sessions/:id`
+- `PATCH /api/ai/sessions/:id`
+- `DELETE /api/ai/sessions/:id`
+- `POST /api/ai/sessions/:id/messages`
 
-## 九、后续可扩展方向
+## 八、部署说明
 
-- 将当前滑动窗口记忆升级为“最近几轮 + 历史摘要”混合记忆
-- 接入真实数据库和 ORM
-- 增加更细粒度的数据权限与租户隔离
+### Vercel 前端
+
+1. `Root Directory` 设置为 `frontend`
+2. `Framework Preset` 设置为 `Vite`
+3. `Build Command` 设置为 `npm run build`
+4. `Output Directory` 设置为 `dist`
+5. 配置环境变量：
+
+```bash
+VITE_API_BASE_URL=https://your-render-domain.onrender.com/api
+```
+
+### Render 后端
+
+1. `Root Directory` 设置为 `backend`
+2. `Build Command` 设置为 `npm install && npm run build`
+3. `Start Command` 设置为 `npm run start`
+4. 配置阿里云百炼和 SQLite 相关环境变量
+
+注意：Render 免费实例文件系统可能不是长期持久化存储。若要生产使用，建议迁移到托管数据库或挂载持久磁盘。
+
+## 九、演示账号
+
+- `admin / 123456`：超级管理员
+- `operator / 123456`：运营
+- `analyst / 123456`：分析师
+- `merchant / 123456`：商家
+
+## 十、后续可扩展方向
+
+- 将 SQLite 升级为 PostgreSQL/MySQL，并引入 ORM 或迁移工具
+- 增加版本号或 `updatedAt` 冲突检测，支持多端并发编辑
+- 增加更细粒度的数据权限和租户隔离
 - 增加报表中心、导出中心和图表钻取
-- 完善单元测试、端到端测试与代码质量工具链
-- 扩展更多 AI 场景、实时通知与任务调度能力
+- 增强 AI 工具调用为更完整的 function calling / agent 工作流
+- 增加单元测试、端到端测试和 CI 检查

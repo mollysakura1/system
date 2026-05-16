@@ -1,131 +1,181 @@
 # AI Intelligent Operations Management Platform
 
-An enterprise-grade front-end and back-end separated project positioned as an “AI-driven SaaS merchant operations management platform.” The project includes login authentication, RBAC permissions, dynamic routing, business dashboards, business modules, internal messaging, profile settings, internationalization, and a real streaming AI assistant powered by Alibaba Cloud Bailian.
+An enterprise-grade front-end and back-end separated admin project positioned as an AI-driven SaaS merchant operations management platform. It includes authentication, RBAC permissions, dynamic routing, dashboards, business management, internal messaging, profile settings, internationalization, and a real streaming AI assistant powered by the Alibaba Cloud Bailian OpenAI-compatible API.
 
 ## 1. Project Overview
 
-This project uses a dual-directory front-end and back-end structure:
-
 - Front end: `Vue 3 + TypeScript + Vite + Pinia + Vue Router + Element Plus + Axios + ECharts`
-- Back end: `Node.js + Express + TypeScript + JWT + SSE`
-- AI capability: the back end connects to the Alibaba Cloud Bailian compatible API, while the front end keeps using the existing SSE protocol for streaming consumption
-- Data layer: mainly based on in-memory data and local persistence, with priority on runnability, clear structure, and complete features
+- Back end: `Node.js + Express + TypeScript + JWT + SSE + SQLite`
+- AI: the back end connects to the Alibaba Cloud Bailian compatible API, and the front end consumes streaming output through SSE
+- Data layer: SQLite persists business data, system data, internal messages, AI chat sessions, messages, and memory summaries
+- Cache strategy: SQLite is the source of truth; system management and business center use Pinia session cache; AI chat uses a backend-first model with local cache for speed and fallback
 
-## 2. Tech Stack
+Default SQLite file:
 
-### Front-End Stack
+```text
+backend/data/app.sqlite
+```
 
-- Vue 3
-- TypeScript
-- Vite
-- Pinia
-- Vue Router
-- Element Plus
-- Axios
-- ECharts
-- Vue I18n
-- Marked
-- Highlight.js
+This is a binary SQLite database file. Use DB Browser for SQLite or `sqlite3` to inspect it instead of opening it with a text editor.
 
-### Back-End Stack
-
-- Node.js
-- Express
-- TypeScript
-- JWT
-- SSE
-- Dotenv
-- OpenAI-compatible client SDK
-- Alibaba Cloud Bailian compatible API
-
-## 3. Core Features
+## 2. Core Features
 
 ### 1. Login and Authentication
 
-- Login page supports username, password, and image captcha
-- Registration page supports username, display name, password, confirm password, and image captcha
-- Supports `accessToken + refreshToken`
-- Axios request layer automatically attaches tokens
-- Automatically refreshes tokens on 401 and redirects to login if refresh fails
-- Supports automatic session expiration and re-login after 1 hour of inactivity
-- Route guards, logout flow, and auth-state cleanup are fully implemented
+- Username, password, and image captcha login
+- User registration
+- Cookie-based session flow with access and refresh tokens
+- Automatic token refresh on 401; failed refresh clears auth state and redirects to login
+- Automatic session expiration after 1 hour of inactivity
+- Route guards, logout cleanup, and unified error handling
 
-### 2. Permission System
+### 2. RBAC Permission System
 
-- Supports four roles: `super-admin`, `operator`, `analyst`, and `merchant`
-- The back end returns menu trees by role
-- The front end injects routes dynamically based on menus
-- Supports menu-level, route-level, and button-level permission control
-- Supports the custom permission directive `v-permission`
-- Non-admin users are redirected to 403 even if they manually enter system-management URLs
+- Supports `super-admin`, `operator`, `analyst`, and `merchant`
+- The back end returns menu trees and permission codes by role
+- The front end injects routes dynamically based on returned menus
+- Supports menu-level, page-level, and button-level permission control
+- Supports the custom `v-permission` directive
+- User and role management data is persisted in SQLite
 
-### 3. Admin Layout
+### 3. System Management
 
-- Sidebar + top bar + tab navigation + breadcrumb layout
-- The top bar supports theme switching, language switching, internal messages, profile settings, and logout
-- Tabs can be closed
-- Old tabs are cleared when switching accounts to avoid stale permission state
+- User management: create, view, edit, and delete users
+- Role management: create, view, edit, delete, and manage permissions
+- Menu management: display menu trees and role-menu information
+- Log management: view log lists
+- System settings: theme, language, and basic preferences
 
-### 4. System Management
+System management data strategy:
 
-- User management: create, view, edit, and delete with username, name, role, status, and other fields
-- Role management: create, view, edit, delete, and permission management
-- Menu management: menu tree display and role-menu assignment
-- Log management: view and delete
-- System settings: language switching, theme configuration, and other basic settings
+- Fetch from the back end when a page needs data for the first time
+- Cache only in Pinia for the current browser session
+- No persistent `localStorage` cache for system management data
 
-### 5. Business Center
+### 4. Dashboard and Business Center
 
-- Merchant management: unique merchant codes, create, edit, delete, and local persistence
-- Product management: unique product codes, create, edit, delete, and local persistence
-- Order management: unique order numbers, create, edit, delete, and local persistence
-- Activity management: unique activity codes, create, edit, delete, and local persistence
-- Coupon management: unique coupon codes, create, edit, delete, and local persistence
-- Channel management: create, edit, delete, and link with merchant and order forms
+- Dashboard overview metrics
+- Order trend and GMV trend charts
+- Category sales bar chart and user source pie chart
+- Merchant, product, order, activity, coupon, and channel management
+- Create, edit, and delete actions go through RESTful APIs and persist to SQLite
+- The front end uses Pinia session cache and reloads from the back end after a page refresh
 
-### 6. Data Visualization
+### 5. Internal Messaging and Profile Center
 
-- Dashboard metric cards
-- Order trend and GMV trend line charts
-- Category sales bar chart
-- User source pie chart
-- Time range filtering
-- CSV export support
+- Top-bar internal messaging entry with unread indicator
+- Role-change requests and permission-change notifications
+- Profile, avatar, phone, email, address, and password updates
+- Internal messages are persisted in SQLite
 
-### 7. AI Operations Assistant
+### 6. AI Operations Assistant
 
 - Session list, new session, and session deletion
 - Prompt templates
 - Markdown rendering and code highlighting
-- Sliding-window conversational memory that keeps the latest 5 completed turns by default
-- Automatically reduces the history window when business context is enabled to avoid oversized prompts
-- Supports switching whether business context is sent to the AI
-- User messages support copy and edit
-- Assistant messages support regeneration
-- Session records are cached separately by account
-- Supports stop generation, failure hints, and regeneration
-- Supports true streaming display
+- Stop generation, regeneration, and error hints
+- Toggle for whether business context is sent to AI
+- Recent-message window plus backend session summary memory
+- Backend-controlled tool calling that retrieves business data from SQLite
+- AI sessions, messages, and summary memory are persisted in SQLite
+- Local chat cache is used only for fast rendering and backend-failure fallback
 
-### 8. Profile Center and Internal Messaging
+## 3. Data Persistence and Cache Strategy
 
-- Profile settings support avatar, display name, password, phone number, email, and address updates
-- Regular users can submit role-change requests
-- The role-request section is hidden for super admins
-- The top-bar mailbox icon shows unread red dots
-- Role-change requests send internal messages to admins
-- Role updates performed by admins send internal messages to the target user
+### 1. SQLite Database
 
-### 9. Experience Optimization
+The back end initializes SQLite tables on startup and seeds them from the original mock data on first run.
 
-- Lazy-loaded routes
-- `keep-alive` page caching
-- Virtual list
-- Dark mode
-- Chinese and English internationalization
-- Empty, error, and loading state handling
-- Improved AI thinking and streaming interaction experience
+Main tables:
 
-## 4. Project Structure
+- `users`
+- `credentials`
+- `site_messages`
+- `resource_items`
+- `ai_prompts`
+- `ai_chat_sessions`
+- `ai_chat_messages`
+
+Data mapping:
+
+- Users: `users` and `credentials`
+- Merchants, products, orders, activities, coupons, channels, and roles: `resource_items`
+- Internal messages: `site_messages`
+- AI sessions: `ai_chat_sessions`
+- AI messages: `ai_chat_messages`
+- AI session summaries: `ai_chat_sessions.summary`
+
+### 2. Front-End Cache Strategy
+
+- System management: backend source of truth, Pinia session cache
+- Business center: backend source of truth, Pinia session cache
+- AI chat: backend source of truth, local cache for acceleration and fallback
+- User preferences such as theme, language, and AI context toggle still use `localStorage`
+
+## 4. AI Assistant Implementation
+
+### 1. Streaming Output
+
+The back end exposes `GET /api/ai/stream` and `POST /api/ai/stream` with `text/event-stream`.
+
+SSE events consumed by the front end:
+
+```text
+data: {"type":"tools","tools":[...]}
+data: {"type":"chunk","content":"..."}
+data: {"type":"done"}
+```
+
+### 2. Backend-Controlled Tool Calling
+
+Tool calling is implemented on the back end. The model is not allowed to execute SQL directly.
+
+Flow:
+
+1. The front end sends the user prompt, `sessionId`, recent messages, and `includeContext`
+2. The back end selects business tools based on the prompt
+3. Tools read controlled data from SQLite
+4. The back end builds structured tool results
+5. Tool results, session summary, recent messages, and the current prompt are sent to the model
+6. The model generates a streaming answer based on those results
+
+Current business retrieval capabilities:
+
+- Orders: count, amount, status grouping, channel grouping, merchant grouping
+- Merchants: count, status, channel, GMV
+- Products: category, sales, low stock
+- Activities: type, status, budget
+- Coupons: status and usage
+- Channels: type and status
+- Dashboard overview and trend data
+
+Tool calling is enabled when the “Send business context to AI” toggle is on. If it is off, the assistant uses ordinary chat, session summary, and recent-message context only.
+
+### 3. Session Summary Memory
+
+After each final assistant response is saved, the back end merges:
+
+- previous summary
+- latest user prompt
+- latest assistant response
+
+into a concise updated summary stored at:
+
+```text
+ai_chat_sessions.summary
+```
+
+The next request in the same session automatically reads this summary and sends it to the model.
+
+### 4. Recent Message Window
+
+Before sending a prompt, the front end extracts recent complete turns from the active session:
+
+- Default mode: latest 5 complete turns
+- Business-context mode: latest 3 complete turns
+- Both front end and back end enforce per-message and total-context length budgets
+
+## 5. Project Structure
 
 ```text
 vue3-system
@@ -147,6 +197,7 @@ vue3-system
 │  └─ vite.config.ts
 ├─ backend
 │  ├─ src
+│  │  ├─ database
 │  │  ├─ lib
 │  │  ├─ middlewares
 │  │  ├─ mock
@@ -154,14 +205,13 @@ vue3-system
 │  │  ├─ services
 │  │  ├─ types
 │  │  └─ utils
-│  ├─ .env.example
-│  └─ tsconfig.json
-├─ package.json
+│  ├─ data
+│  └─ .env.example
 ├─ README.md
 └─ README-en.md
 ```
 
-## 5. Quick Start
+## 6. Quick Start
 
 ### 1. Install Dependencies
 
@@ -171,7 +221,7 @@ npm install
 
 ### 2. Configure Back-End Environment Variables
 
-Create `backend/.env` based on `backend/.env.example`:
+Create `backend/.env` from `backend/.env.example`:
 
 ```bash
 ALIYUN_API_KEY=your_bailian_key
@@ -180,211 +230,45 @@ ALIYUN_MODEL=qwen-plus
 PORT=3001
 ```
 
-Description:
+Optional SQLite path:
 
-- `ALIYUN_API_KEY`: Alibaba Cloud Bailian API key
-- `ALIYUN_BASE_URL`: Bailian compatible API base URL
-- `ALIYUN_MODEL`: default model name
-- `PORT`: local back-end port, currently `3001`
+```bash
+SQLITE_DB_PATH=./data/app.sqlite
+```
 
 ### 3. Start the Project
-
-Start front end and back end together:
 
 ```bash
 npm run dev
 ```
 
-Start separately:
+Start front end and back end separately:
 
 ```bash
 npm run dev:frontend
 npm run dev:backend
 ```
 
-### 4. Build the Project
+### 4. Build and Check
 
 ```bash
 npm run build
+npm run check
 ```
 
-### 5. Default URLs
+Default URLs:
 
-- Front-end URL: `http://localhost:5173`
-- Back-end URL: `http://localhost:3001`
+- Front end: `http://localhost:5173`
+- Back end: `http://localhost:3001`
 
-### 6. Deployment (Vercel + Render)
-
-This project uses a separated deployment setup:
-
-- GitHub: source code hosting and auto-deploy trigger
-- Vercel: deploys the `frontend` Vue 3 + Vite application
-- Render: deploys the `backend` Node.js + Express service
-
-Deploy the front end to Vercel:
-
-1. Import the GitHub repository into Vercel
-2. Set `Root Directory` to `frontend`
-3. Set `Framework Preset` to `Vite`
-4. Set `Build Command` to `npm run build`
-5. Set `Output Directory` to `dist`
-6. Add the environment variable below and redeploy
-
-```bash
-VITE_API_BASE_URL=https://your-render-domain.onrender.com/api
-```
-
-Notes:
-
-- The project uses `createWebHistory()`, so [frontend/vercel.json](frontend/vercel.json) is used for SPA rewrites
-- The front end reads the API base URL from [frontend/src/config/env.ts](frontend/src/config/env.ts)
-
-Deploy the back end to Render:
-
-1. Create a new `Web Service`
-2. Connect the same GitHub repository
-3. Set `Root Directory` to `backend`
-4. Set `Build Command` to `npm install && npm run build`
-5. Set `Start Command` to `npm run start`
-6. Configure environment variables in Render
-
-Recommended variables:
-
-```bash
-ALIYUN_API_KEY=your_aliyun_key
-ALIYUN_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-ALIYUN_MODEL=qwen-plus
-```
-
-Recommended deployment order:
-
-1. Deploy the back end to Render first and confirm the service URL works
-2. Set `VITE_API_BASE_URL` in Vercel to `https://your-render-domain.onrender.com/api`
-3. Redeploy the front end on Vercel
-
-Request flow after deployment:
-
-1. Users open the Vercel front end
-2. The front end sends API requests to the Render back end
-3. The back end returns login, dashboard, business data, and AI streaming responses
-
-## 6. Demo Accounts
-
-- `admin / 123456`: super admin
-- `operator / 123456`: operator role
-- `analyst / 123456`: analyst role
-- `merchant / 123456`: merchant role
-
-## 7. Role Description
-
-### Super Admin
-
-- Can access all modules
-- Can manage users, roles, menus, and logs
-- Can modify other users’ roles in user management
-
-### Operator
-
-- Focuses on merchant, product, campaign, and order management
-- Can use the AI assistant and profile settings
-
-### Analyst
-
-- Focuses on dashboards, order analytics, and AI-assisted analysis
-- Can use the AI assistant and profile settings
-
-### Merchant
-
-- Only accesses merchant-related business pages
-- Can use the AI assistant and profile settings
-
-## 8. Front-End Pages
-
-- Login page
-- Registration page
-- Dashboard overview
-- User management
-- Role management
-- Menu management
-- Log management
-- System settings
-- Merchant management
-- Product management
-- Order management
-- Activity management
-- Coupon management
-- Channel management
-- AI operations assistant
-- Profile settings
-- 403 page
-- 404 page
-
-## 9. Key Implementation Notes
-
-### 1. Authentication Flow
-
-- The back end returns tokens through `POST /api/auth/login`
-- The back end provides token refresh through `POST /api/auth/refresh`
-- The front-end request interceptor injects tokens automatically
-- The front end tracks user activity globally, and clears the session and redirects to login after 1 hour of inactivity
-- When tokens expire, they are refreshed automatically; if refresh fails, the user is logged out
-
-### 2. RBAC and Dynamic Routing
-
-- The back end returns menus by role through `GET /api/menus`
-- The front end generates actual routes dynamically from the menu structure
-- `Pinia` centrally manages user profile, menus, permission points, and tab state
-- `v-permission` enables button-level permission control
-
-### 3. Business Data Persistence
-
-- Create, edit, and delete operations in the business center are written to browser local storage
-- Demo data remains after refresh
-- Forms such as orders, activities, merchants, and channels are linked with each other
-
-### 4. AI Assistant and Streaming Output
-
-- `GET /api/ai/prompts` returns prompt templates
-- `GET /api/ai/stream` pushes streaming content via SSE
-- `GET /api/ai/stream` accepts `prompt`, `includeContext`, and serialized `messages` for conversational memory
-- The front end still consumes the same protocol:
-  - `data: {"type":"chunk","content":"..."}`
-  - `data: {"type":"done"}`
-- Supports stop generation, regeneration, and graceful error fallback
-- The front end trims history before sending it to the back end:
-  - default mode: latest 5 complete turns
-  - business-context mode: latest 3 complete turns
-  - both sides apply message-length and total-context budgets as a safety fallback
-
-### 5. AI Reads Business Data
-
-Before calling the model, the back end injects business context including:
-
-- overview metrics
-- chart data for recent days
-- time filter
-- merchant filter
-- channel filter
-- business summary generated from the current filters
-
-The AI assistant page also supports switching whether business context is sent:
-
-- When enabled: the back end injects business data and filter information into the model
-- When disabled: only the user input is sent, and the assistant works in pure Q&A mode
-
-### 6. Real Model Integration
-
-- The old mock timer-based output has been replaced by the Alibaba Cloud Bailian compatible API
-- Model settings are read from environment variables, with no key exposed to the front end
-- If the upstream request fails, the back end returns readable error content and then sends the completion event
-
-## 10. Back-End API List
+## 7. Back-End API List
 
 ### Authentication
 
 - `POST /api/auth/login`
 - `POST /api/auth/register`
 - `POST /api/auth/refresh`
+- `POST /api/auth/logout`
 - `GET /api/auth/captcha`
 
 ### Users and Permissions
@@ -394,129 +278,78 @@ The AI assistant page also supports switching whether business context is sent:
 - `GET /api/menus`
 - `GET /api/users`
 - `POST /api/users`
+- `GET /api/users/:id`
 - `PATCH /api/users/:id`
 - `DELETE /api/users/:id`
 - `GET /api/roles`
+- `POST /api/roles`
+- `GET /api/roles/:id`
+- `PATCH /api/roles/:id`
+- `DELETE /api/roles/:id`
 
-### Dashboard and Business
+### Dashboard and Business Center
 
 - `GET /api/dashboard/overview`
 - `GET /api/dashboard/charts`
 - `GET /api/merchants`
-- `GET /api/products`
-- `GET /api/orders`
-- `GET /api/activities`
-- `GET /api/coupons`
-- `GET /api/channels`
-- `GET /api/logs`
+- `POST /api/merchants`
+- `GET /api/merchants/:id`
+- `PATCH /api/merchants/:id`
+- `DELETE /api/merchants/:id`
+
+`products`, `orders`, `activities`, `coupons`, and `channels` support the same collection and item RESTful CRUD pattern.
 
 ### Messaging and AI
 
 - `GET /api/messages`
-- `POST /api/messages/:id/read`
-- `POST /api/messages/permission-request`
+- `GET /api/messages/:id`
+- `PATCH /api/messages/:id`
+- `POST /api/permission-requests`
 - `GET /api/ai/prompts`
 - `GET /api/ai/stream`
+- `POST /api/ai/stream`
+- `GET /api/ai/sessions`
+- `POST /api/ai/sessions`
+- `GET /api/ai/sessions/:id`
+- `PATCH /api/ai/sessions/:id`
+- `DELETE /api/ai/sessions/:id`
+- `POST /api/ai/sessions/:id/messages`
 
-## 11. AI Streaming Description
+## 8. Deployment Notes
 
-The back end returns `text/event-stream` and keeps the following event format unchanged:
+### Vercel Front End
 
-- `data: {"type":"chunk","content":"..."}`
-- `data: {"type":"done"}`
+1. Set `Root Directory` to `frontend`
+2. Set `Framework Preset` to `Vite`
+3. Set `Build Command` to `npm run build`
+4. Set `Output Directory` to `dist`
+5. Add:
 
-Back-end flow:
+```bash
+VITE_API_BASE_URL=https://your-render-domain.onrender.com/api
+```
 
-1. Verify login state
-2. Read overview data, chart data, and filter conditions
-3. Build structured business context
-4. Call the Alibaba Cloud Bailian compatible API
-5. Forward model stream content to the front end
-6. Send `done` on completion
-7. Abort safely when the client disconnects
+### Render Back End
 
-If the Bailian key is missing, the model configuration is invalid, or the network fails, the back end returns readable error content to the front end.
+1. Set `Root Directory` to `backend`
+2. Set `Build Command` to `npm install && npm run build`
+3. Set `Start Command` to `npm run start`
+4. Configure Alibaba Cloud Bailian and SQLite environment variables
 
-## 12. Internal Messaging and Profile Center
+Note: free Render instances may not provide long-term persistent filesystem storage. For production usage, migrate to a hosted database or attach persistent disk storage.
 
-### Profile Settings
+## 9. Demo Accounts
 
-- avatar
-- display name
-- password
-- phone number
-- email
-- address
-- role request
+- `admin / 123456`: super admin
+- `operator / 123456`: operator
+- `analyst / 123456`: analyst
+- `merchant / 123456`: merchant
 
-### Internal Messaging
+## 10. Future Extensions
 
-- The top-bar mailbox icon shows unread red dots
-- Supports viewing messages and marking them as read
-- When a user submits a role-change request, the super admin receives an internal message
-- When a super admin updates a role, the target user receives an internal message
-
-## 13. Verification Status
-
-- Back-end type checking passed
-- Front-end type checking passed
-- Back-end build passed
-- Front-end build passed
-- Login, registration, permissions, business management, and AI streaming flows have been verified locally
-
-## 14. Front-End Performance Optimization Notes
-
-To improve first-screen loading, the project completed four rounds of front-end performance work:
-
-### 1. Problem Diagnosis
-
-- Analyzed build output and browser traces instead of relying on subjective feeling
-- Confirmed that the initial bottlenecks came from oversized dependency chunks, route-guard blocking, and dashboard charts loading too early
-- The largest chunks originally included `echarts`, `element-plus`, and AI markdown/highlight dependencies
-
-### 2. Round 1: Reduce Core Dependency Size
-
-- Replaced global `Element Plus` registration with Vite-based auto import and component auto registration
-- Switched chart rendering from full `echarts` import to `echarts/core` with only the required charts and components
-- Optimized chart resize handling to call `chart.resize()` instead of repeatedly re-rendering the full option
-
-### 3. Round 2: Shorten the First-Screen Request Chain
-
-- Moved the layout inbox request out of the synchronous first-screen path
-- Warmed up messages during browser idle time instead of loading them immediately on layout mount
-- Changed `fetchProfile()` and `fetchMenus()` from serial execution to `Promise.all(...)` in the route guard
-
-### 4. Round 3: Split AI Markdown and Highlight Runtime
-
-- Removed synchronous imports of `marked`, `highlight.js`, and highlight styles from the chat message component
-- Loaded markdown parsing and code highlighting only when assistant messages actually needed rich rendering
-- Replaced full `highlight.js` language loading with `highlight.js/lib/core` plus a small set of registered languages
-- Added buffered streaming updates so SSE chunks are merged in small batches instead of forcing a full message render on every chunk
-- Split chat rendering into streaming mode and final mode:
-  - streaming mode uses lighter markdown rendering
-  - final mode applies complete markdown parsing and code highlighting after completion
-- Added lightweight markdown patching during streaming to tolerate unclosed code fences, backticks, and other temporary incomplete syntax
-
-### 5. Round 4: Lazy-Load Dashboard Charts
-
-- Separated overview metrics from chart data requests
-- Rendered dashboard metrics first and delayed chart loading until the chart area approached the viewport
-- Added chart skeleton placeholders and enabled ECharts initialization only when a chart card became active
-- Removed manual chunk forcing for `element-plus` so the bundler could split it more naturally by usage path
-- Fixed the first-refresh chart sizing issue by waiting for layout stabilization and combining `ResizeObserver` with scheduled chart resize handling
-
-### 6. Result
-
-- Front-end production build still passes after the optimization work
-- The original large AI chunk was split into smaller on-demand chunks
-- `charts` and `element-plus` were significantly reduced compared with the earlier build output
-- The dashboard now renders useful content earlier instead of blocking on chart initialization
-
-## 15. Possible Extensions
-
-- Integrate a real database and ORM
-- Upgrade the current sliding-window memory to "recent turns + summary" hybrid memory
+- Upgrade SQLite to PostgreSQL/MySQL and introduce an ORM or migration tool
+- Add version or `updatedAt` conflict detection for concurrent edits
 - Add finer-grained data permissions and tenant isolation
-- Add a report center, export center, and chart drill-down
-- Improve unit tests, end-to-end tests, and code quality tooling
-- Add real-time notifications, task scheduling, and more AI scenarios
+- Add report center, export center, and chart drill-down
+- Evolve backend-controlled tools into a fuller function calling / agent workflow
+- Add unit tests, end-to-end tests, and CI checks
