@@ -6,6 +6,7 @@ import cors from 'cors';
 import express from 'express';
 import morgan from 'morgan';
 import { getDatabasePath, initDatabase } from './database/db.js';
+import { writeRequestSecurity } from './middlewares/security.js';
 import router from './routes/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -35,6 +36,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(morgan('dev'));
+app.use('/api', writeRequestSecurity);
 
 app.get('/', (_, res) => {
   res.json({

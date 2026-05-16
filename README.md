@@ -24,8 +24,10 @@ backend/data/app.sqlite
 
 - 用户名、密码、图形验证码登录
 - 注册账号
-- Cookie 会话模式，后端签发 access token 和 refresh token
-- 401 自动刷新 token，刷新失败后清理登录态并跳转登录页
+- access token 存放在 Pinia 内存中，请求时通过 `Authorization: Bearer <token>` 发送
+- refresh token 存放在 `httpOnly` Cookie 中，并限制在 `/api/auth` 路径下使用
+- 401 自动调用 `/api/auth/refresh` 刷新 access token，刷新失败后清理登录态并跳转登录页
+- 写接口支持 CSRF token、nonce 防重放和 POST 幂等键保护
 - 支持 1 小时无操作自动失效
 - 路由守卫、退出登录和异常状态统一处理
 
@@ -112,7 +114,58 @@ backend/data/app.sqlite
 - AI 聊天：后端为准，本地缓存加速和兜底
 - 主题、语言、AI 是否发送上下文等用户偏好仍使用 `localStorage`
 
-## 四、AI 助手实现说明
+## 四、认证与写请求安全
+
+### 1. Token 存储策略
+
+当前认证方案为：
+
+- `accessToken`：登录或刷新后由后端响应体返回，前端仅保存在 Pinia 内存中
+- `refreshToken`：后端写入 `httpOnly` Cookie，Cookie 名为 `ai_ops_refresh`
+- refresh token Cookie 的 path 限制为 `/api/auth`，不会随普通业务接口请求发送
+- 普通业务接口通过 `Authorization: Bearer <accessToken>` 鉴权
+- 浏览器刷新导致 Pinia 内存丢失时，路由守卫会先调用 `/api/auth/refresh` 尝试换取新的 access token
+
+这样可以减少普通业务请求自动携带 Cookie 的范围，同时避免长期 refresh token 暴露给前端 JS。
+
+### 2. CSRF Token
+
+前端在业务写请求前会请求：
+
+```text
+GET /api/security/csrf
+```
+
+后端生成 CSRF token，并同时写入 `httpOnly` Cookie 和返回响应体。后续 `POST/PATCH/DELETE` 请求会自动携带：
+
+```text
+X-CSRF-Token: <token>
+```
+
+后端会校验请求头 token、Cookie token 和签名是否一致。
+
+### 3. Nonce 防重放
+
+所有已登录后的写请求会自动携带：
+
+```text
+X-Request-Nonce: <uuid>
+X-Request-Timestamp: <timestamp>
+```
+
+后端会校验时间窗口，并记录已使用 nonce。重复 nonce 会被拒绝。
+
+### 4. POST 幂等键
+
+所有已登录后的 `POST` 写请求会自动携带：
+
+```text
+Idempotency-Key: <uuid>
+```
+
+同一用户、同一路径、同一个幂等键的重复 POST 请求会直接返回第一次请求结果，避免重复创建。
+
+## 五、AI 助手实现说明
 
 ### 1. 流式输出
 
@@ -175,7 +228,7 @@ ai_chat_sessions.summary
 - 开启运营上下文时保留最近 3 轮完整问答
 - 前后端都会限制单条消息和总上下文长度
 
-## 五、项目结构
+## 六、项目结构
 
 ```text
 vue3-system
@@ -211,7 +264,7 @@ vue3-system
 └─ README-en.md
 ```
 
-## 六、快速开始
+## 七、快速开始
 
 ### 1. 安装依赖
 
@@ -261,7 +314,7 @@ npm run check
 - 前端：`http://localhost:5173`
 - 后端：`http://localhost:3001`
 
-## 七、后端主要接口
+## 八、后端主要接口
 
 ### 鉴权
 
@@ -270,6 +323,7 @@ npm run check
 - `POST /api/auth/refresh`
 - `POST /api/auth/logout`
 - `GET /api/auth/captcha`
+- `GET /api/security/csrf`
 
 ### 用户与权限
 
@@ -315,7 +369,7 @@ npm run check
 - `DELETE /api/ai/sessions/:id`
 - `POST /api/ai/sessions/:id/messages`
 
-## 八、部署说明
+## 九、部署说明
 
 ### Vercel 前端
 
@@ -338,14 +392,14 @@ VITE_API_BASE_URL=https://your-render-domain.onrender.com/api
 
 注意：Render 免费实例文件系统可能不是长期持久化存储。若要生产使用，建议迁移到托管数据库或挂载持久磁盘。
 
-## 九、演示账号
+## 十、演示账号
 
 - `admin / 123456`：超级管理员
 - `operator / 123456`：运营
 - `analyst / 123456`：分析师
 - `merchant / 123456`：商家
 
-## 十、后续可扩展方向
+## 十一、后续可扩展方向
 
 - 将 SQLite 升级为 PostgreSQL/MySQL，并引入 ORM 或迁移工具
 - 增加版本号或 `updatedAt` 冲突检测，支持多端并发编辑

@@ -6,6 +6,7 @@ import type { AppMenu, UserProfile } from '../../types';
 import { useAppStore } from './app';
 import { useChatStore } from './chat';
 import { useMessageStore } from './message';
+import { clearCsrfToken } from '../../utils/security';
 import { clearSessionActivity, touchSessionActivity } from '../../utils/session';
 
 interface UserState {
@@ -28,20 +29,19 @@ export const useUserStore = defineStore('user', {
     role: (state) => state.profile?.role
   },
   actions: {
-    markAuthenticated() {
-      this.accessToken = 'cookie-session';
+    markAuthenticated(accessToken: string) {
+      this.accessToken = accessToken;
     },
     async loginAction(payload: { username: string; password: string; captchaId: string; captchaCode: string }) {
       useAppStore().clearVisitedTabs();
       const { data } = await loginApi(payload);
-      this.markAuthenticated();
+      this.markAuthenticated(data.accessToken);
       touchSessionActivity(true);
       this.dynamicRoutesReady = false;
       return data;
     },
     async fetchProfile() {
       const { data } = await getProfileApi();
-      this.markAuthenticated();
       this.profile = data;
       this.permissions = data.permissions;
       await useChatStore().loadForAccount(data.id);
@@ -62,7 +62,8 @@ export const useUserStore = defineStore('user', {
     },
     async refreshTokenAction() {
       const { data } = await refreshTokenApi();
-      this.markAuthenticated();
+      this.markAuthenticated(data.accessToken);
+      touchSessionActivity(true);
       return data;
     },
     async logoutAction() {
@@ -73,6 +74,7 @@ export const useUserStore = defineStore('user', {
       }
     },
     clearAuth() {
+      clearCsrfToken();
       useAppStore().clearVisitedTabs();
       useChatStore().resetRuntime();
       useMessageStore().reset();

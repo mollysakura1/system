@@ -171,6 +171,7 @@ router.post('/login', (req, res) => {
 
   setAuthCookies(req, res, tokens);
   res.json(ok({
+    accessToken: tokens.accessToken,
     role: user.role
   }));
 });
@@ -192,7 +193,7 @@ router.post('/refresh', (req, res) => {
     };
 
     setAuthCookies(req, res, tokens);
-    res.json(ok({ role: payload.role }));
+    res.json(ok({ accessToken: tokens.accessToken, role: payload.role }));
   } catch {
     clearAuthCookies(req, res);
     res.status(401).json({ code: 401, message: 'Refresh token has expired', data: null });

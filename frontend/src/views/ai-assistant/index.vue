@@ -79,6 +79,7 @@ import StreamMessage from '../../components/stream-message.vue';
 import { getAiPromptsApi } from '../../api/ai';
 import { API_BASE_URL } from '../../config/env';
 import { useChatStore } from '../../store/modules/chat';
+import { useUserStore } from '../../store/modules/user';
 import { buildConversationWindow, type AiConversationMessage } from '../../utils/ai-context';
 import { streamSse } from '../../utils/sse';
 
@@ -86,6 +87,7 @@ defineOptions({ name: 'AiAssistantPage' });
 
 const { t, locale } = useI18n();
 const chatStore = useChatStore();
+const userStore = useUserStore();
 const prompts = ref<string[]>([]);
 const inputValue = ref('');
 const streaming = ref(false);
@@ -230,7 +232,8 @@ async function runStream(prompt: string, historyMessages: AiConversationMessage[
     await streamSse(`${API_BASE_URL}/ai/stream?${searchParams.toString()}`, {
       signal: controller.signal,
       headers: {
-        Accept: 'text/event-stream'
+        Accept: 'text/event-stream',
+        Authorization: `Bearer ${userStore.accessToken}`
       },
       onMessage(payload) {
         if (payload.type === 'chunk') {

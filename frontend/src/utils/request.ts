@@ -5,6 +5,7 @@ import { API_BASE_URL } from '../config/env';
 import i18n from '../locales';
 import router from '../router';
 import { useUserStore } from '../store/modules/user';
+import { buildWriteSecurityHeaders, clearCsrfToken } from './security';
 import { expireSession, isSessionIdleExpired, touchSessionActivity } from './session';
 
 const service = axios.create({
@@ -15,7 +16,7 @@ const service = axios.create({
 
 let refreshPromise: Promise<unknown> | null = null;
 
-service.interceptors.request.use((config) => {
+service.interceptors.request.use(async (config) => {
   const userStore = useUserStore();
   if (userStore.accessToken && isSessionIdleExpired()) {
     expireSession();
@@ -24,7 +25,11 @@ service.interceptors.request.use((config) => {
 
   if (userStore.accessToken) {
     touchSessionActivity();
+    config.headers.set('Authorization', `Bearer ${userStore.accessToken}`);
   }
+
+  const securityHeaders = await buildWriteSecurityHeaders(config.url, config.method);
+  config.headers.set(securityHeaders);
 
   return config;
 });
@@ -54,6 +59,7 @@ service.interceptors.response.use(
     }
 
     if (error.response?.status === 401 && isRefreshRequest) {
+      clearCsrfToken();
       userStore.clearAuth();
       router.replace('/login');
       return Promise.reject(error);

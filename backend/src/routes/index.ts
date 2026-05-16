@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Router, type Response } from 'express';
 import authRoutes from './auth.js';
 import { authMiddleware, type AuthRequest } from '../middlewares/auth.js';
+import { issueCsrfToken } from '../middlewares/security.js';
 import {
   createMessage,
   createAiChatSession,
@@ -301,6 +302,8 @@ async function handleAiStream(req: AuthRequest, res: Response) {
 }
 
 router.use('/auth', authRoutes);
+
+router.get('/security/csrf', issueCsrfToken);
 
 router.get('/user/profile', authMiddleware, (req: AuthRequest, res) => {
   const menuList = getMenusByRole(req.user!.role);

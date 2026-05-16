@@ -24,8 +24,10 @@ This is a binary SQLite database file. Use DB Browser for SQLite or `sqlite3` to
 
 - Username, password, and image captcha login
 - User registration
-- Cookie-based session flow with access and refresh tokens
-- Automatic token refresh on 401; failed refresh clears auth state and redirects to login
+- Access token is stored only in Pinia memory and sent through `Authorization: Bearer <token>`
+- Refresh token is stored in an `httpOnly` Cookie scoped to `/api/auth`
+- Automatic access-token refresh through `/api/auth/refresh` on 401; failed refresh clears auth state and redirects to login
+- Mutating APIs are protected by CSRF token, request nonce replay protection, and POST idempotency keys
 - Automatic session expiration after 1 hour of inactivity
 - Route guards, logout cleanup, and unified error handling
 
@@ -112,7 +114,58 @@ Data mapping:
 - AI chat: backend source of truth, local cache for acceleration and fallback
 - User preferences such as theme, language, and AI context toggle still use `localStorage`
 
-## 4. AI Assistant Implementation
+## 4. Authentication and Write-Request Security
+
+### 1. Token Storage Strategy
+
+Current authentication behavior:
+
+- `accessToken`: returned in the login/refresh response body and stored only in Pinia memory
+- `refreshToken`: written by the back end into an `httpOnly` Cookie named `ai_ops_refresh`
+- The refresh token Cookie path is scoped to `/api/auth`, so it is not sent with ordinary business APIs
+- Business APIs authenticate through `Authorization: Bearer <accessToken>`
+- After a browser refresh, Pinia memory is lost; the route guard calls `/api/auth/refresh` first to restore an access token when the refresh Cookie is still valid
+
+This reduces automatic Cookie exposure on business requests while keeping the long-lived refresh token unavailable to front-end JavaScript.
+
+### 2. CSRF Token
+
+Before protected mutating requests, the front end obtains a token from:
+
+```text
+GET /api/security/csrf
+```
+
+The back end issues a CSRF token, writes it to an `httpOnly` Cookie, and returns it in the response body. Later `POST/PATCH/DELETE` requests automatically include:
+
+```text
+X-CSRF-Token: <token>
+```
+
+The back end checks the request header token, Cookie token, and token signature.
+
+### 3. Nonce Replay Protection
+
+Authenticated mutating requests automatically include:
+
+```text
+X-Request-Nonce: <uuid>
+X-Request-Timestamp: <timestamp>
+```
+
+The back end validates the timestamp window and records used nonces. Reusing a nonce is rejected.
+
+### 4. POST Idempotency Key
+
+Authenticated `POST` requests automatically include:
+
+```text
+Idempotency-Key: <uuid>
+```
+
+Repeated POST requests from the same user to the same path with the same idempotency key return the first response instead of creating duplicate records.
+
+## 5. AI Assistant Implementation
 
 ### 1. Streaming Output
 
@@ -175,7 +228,7 @@ Before sending a prompt, the front end extracts recent complete turns from the a
 - Business-context mode: latest 3 complete turns
 - Both front end and back end enforce per-message and total-context length budgets
 
-## 5. Project Structure
+## 6. Project Structure
 
 ```text
 vue3-system
@@ -211,7 +264,7 @@ vue3-system
 └─ README-en.md
 ```
 
-## 6. Quick Start
+## 7. Quick Start
 
 ### 1. Install Dependencies
 
@@ -261,7 +314,7 @@ Default URLs:
 - Front end: `http://localhost:5173`
 - Back end: `http://localhost:3001`
 
-## 7. Back-End API List
+## 8. Back-End API List
 
 ### Authentication
 
@@ -270,6 +323,7 @@ Default URLs:
 - `POST /api/auth/refresh`
 - `POST /api/auth/logout`
 - `GET /api/auth/captcha`
+- `GET /api/security/csrf`
 
 ### Users and Permissions
 
@@ -315,7 +369,7 @@ Default URLs:
 - `DELETE /api/ai/sessions/:id`
 - `POST /api/ai/sessions/:id/messages`
 
-## 8. Deployment Notes
+## 9. Deployment Notes
 
 ### Vercel Front End
 
@@ -338,14 +392,14 @@ VITE_API_BASE_URL=https://your-render-domain.onrender.com/api
 
 Note: free Render instances may not provide long-term persistent filesystem storage. For production usage, migrate to a hosted database or attach persistent disk storage.
 
-## 9. Demo Accounts
+## 10. Demo Accounts
 
 - `admin / 123456`: super admin
 - `operator / 123456`: operator
 - `analyst / 123456`: analyst
 - `merchant / 123456`: merchant
 
-## 10. Future Extensions
+## 11. Future Extensions
 
 - Upgrade SQLite to PostgreSQL/MySQL and introduce an ORM or migration tool
 - Add version or `updatedAt` conflict detection for concurrent edits

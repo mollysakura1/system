@@ -3,8 +3,8 @@ import type { Request, Response } from 'express';
 export const ACCESS_TOKEN_COOKIE = 'ai_ops_access';
 export const REFRESH_TOKEN_COOKIE = 'ai_ops_refresh';
 
-const ACCESS_TOKEN_MAX_AGE = 60 * 60 * 1000;
 const REFRESH_TOKEN_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+const REFRESH_TOKEN_PATH = '/api/auth';
 
 function shouldUseSecureCookie(req: Request) {
   if (process.env.COOKIE_SECURE) {
@@ -15,34 +15,38 @@ function shouldUseSecureCookie(req: Request) {
   return host !== 'localhost' && host !== '127.0.0.1';
 }
 
-function getCookieOptions(req: Request, maxAge: number) {
+function getRefreshCookieOptions(req: Request) {
   const secure = shouldUseSecureCookie(req);
 
   return {
     httpOnly: true,
     secure,
     sameSite: secure ? 'none' as const : 'lax' as const,
-    path: '/api',
-    maxAge
+    path: REFRESH_TOKEN_PATH,
+    maxAge: REFRESH_TOKEN_MAX_AGE
   };
 }
 
 export function setAuthCookies(req: Request, res: Response, tokens: { accessToken: string; refreshToken: string }) {
-  res.cookie(ACCESS_TOKEN_COOKIE, tokens.accessToken, getCookieOptions(req, ACCESS_TOKEN_MAX_AGE));
-  res.cookie(REFRESH_TOKEN_COOKIE, tokens.refreshToken, getCookieOptions(req, REFRESH_TOKEN_MAX_AGE));
+  res.cookie(REFRESH_TOKEN_COOKIE, tokens.refreshToken, getRefreshCookieOptions(req));
 }
 
 export function clearAuthCookies(req: Request, res: Response) {
   const secure = shouldUseSecureCookie(req);
-  const options = {
+  const refreshOptions = {
     httpOnly: true,
     secure,
     sameSite: secure ? 'none' as const : 'lax' as const,
+    path: REFRESH_TOKEN_PATH
+  };
+  const legacyOptions = {
+    ...refreshOptions,
     path: '/api'
   };
 
-  res.clearCookie(ACCESS_TOKEN_COOKIE, options);
-  res.clearCookie(REFRESH_TOKEN_COOKIE, options);
+  res.clearCookie(ACCESS_TOKEN_COOKIE, legacyOptions);
+  res.clearCookie(REFRESH_TOKEN_COOKIE, refreshOptions);
+  res.clearCookie(REFRESH_TOKEN_COOKIE, legacyOptions);
 }
 
 export function getCookieValue(req: Request, name: string) {

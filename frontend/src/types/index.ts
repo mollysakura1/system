@@ -1,6 +1,7 @@
 export type RoleCode = 'super-admin' | 'operator' | 'analyst' | 'merchant';
 
 export interface LoginResult {
+  accessToken: string;
   role: RoleCode;
 }
 

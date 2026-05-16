@@ -16,6 +16,9 @@ const router = createRouter({
 async function ensureDynamicRoutes() {
   const userStore = useUserStore();
   if (userStore.dynamicRoutesReady) return false;
+  if (!userStore.accessToken) {
+    await userStore.refreshTokenAction();
+  }
 
   const [, menus] = await Promise.all([userStore.fetchProfile(), userStore.fetchMenus()]);
   const routes = transformMenusToRoutes(menus);
