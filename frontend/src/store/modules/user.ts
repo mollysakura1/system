@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia';
 import { LAST_ACTIVE_AT_KEY, REFRESH_TOKEN_KEY, TOKEN_KEY } from '../../config';
 import { getMenusApi } from '../../api/system';
-import { getProfileApi, loginApi, refreshTokenApi, updateProfileApi } from '../../api/auth';
-import type { AppMenu, LoginResult, UserProfile } from '../../types';
+import { getProfileApi, loginApi, logoutApi, refreshTokenApi, updateProfileApi } from '../../api/auth';
+import type { AppMenu, UserProfile } from '../../types';
 import { useAppStore } from './app';
 import { useChatStore } from './chat';
 import { useMessageStore } from './message';
@@ -10,7 +10,6 @@ import { clearSessionActivity, touchSessionActivity } from '../../utils/session'
 
 interface UserState {
   accessToken: string;
-  refreshToken: string;
   profile: UserProfile | null;
   menus: AppMenu[];
   permissions: string[];
@@ -19,8 +18,7 @@ interface UserState {
 
 export const useUserStore = defineStore('user', {
   state: (): UserState => ({
-    accessToken: localStorage.getItem(TOKEN_KEY) ?? '',
-    refreshToken: localStorage.getItem(REFRESH_TOKEN_KEY) ?? '',
+    accessToken: '',
     profile: null,
     menus: [],
     permissions: [],
@@ -30,25 +28,23 @@ export const useUserStore = defineStore('user', {
     role: (state) => state.profile?.role
   },
   actions: {
-    setToken(payload: Pick<LoginResult, 'accessToken' | 'refreshToken'>) {
-      this.accessToken = payload.accessToken;
-      this.refreshToken = payload.refreshToken;
-      localStorage.setItem(TOKEN_KEY, payload.accessToken);
-      localStorage.setItem(REFRESH_TOKEN_KEY, payload.refreshToken);
+    markAuthenticated() {
+      this.accessToken = 'cookie-session';
     },
     async loginAction(payload: { username: string; password: string; captchaId: string; captchaCode: string }) {
       useAppStore().clearVisitedTabs();
       const { data } = await loginApi(payload);
-      this.setToken(data);
+      this.markAuthenticated();
       touchSessionActivity(true);
       this.dynamicRoutesReady = false;
       return data;
     },
     async fetchProfile() {
       const { data } = await getProfileApi();
+      this.markAuthenticated();
       this.profile = data;
       this.permissions = data.permissions;
-      useChatStore().loadForAccount(data.id);
+      await useChatStore().loadForAccount(data.id);
       return data;
     },
     async updateProfile(payload: Partial<Pick<UserProfile, 'avatar' | 'name' | 'phone' | 'email' | 'address'>> & { password?: string }) {
@@ -65,17 +61,22 @@ export const useUserStore = defineStore('user', {
       return data;
     },
     async refreshTokenAction() {
-      const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY) ?? '';
-      const { data } = await refreshTokenApi(refreshToken);
-      this.setToken(data);
-      return data.accessToken;
+      const { data } = await refreshTokenApi();
+      this.markAuthenticated();
+      return data;
+    },
+    async logoutAction() {
+      try {
+        await logoutApi();
+      } finally {
+        this.clearAuth();
+      }
     },
     clearAuth() {
       useAppStore().clearVisitedTabs();
       useChatStore().resetRuntime();
       useMessageStore().reset();
       this.accessToken = '';
-      this.refreshToken = '';
       this.profile = null;
       this.menus = [];
       this.permissions = [];

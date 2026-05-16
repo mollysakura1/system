@@ -79,7 +79,6 @@ import StreamMessage from '../../components/stream-message.vue';
 import { getAiPromptsApi } from '../../api/ai';
 import { API_BASE_URL } from '../../config/env';
 import { useChatStore } from '../../store/modules/chat';
-import { TOKEN_KEY } from '../../config';
 import { buildConversationWindow, type AiConversationMessage } from '../../utils/ai-context';
 import { streamSse } from '../../utils/sse';
 
@@ -155,14 +154,14 @@ function formatTime(value: string) {
   return dayjs(value).format('MM-DD HH:mm');
 }
 
-function createNewSession() {
+async function createNewSession() {
   stopGenerate();
-  chatStore.createSession();
+  await chatStore.createSession();
 }
 
-function removeSession(id: string) {
+async function removeSession(id: string) {
   stopGenerate();
-  chatStore.removeSession(id);
+  await chatStore.removeSession(id);
   ElMessage.success(t('ai.sessionDeleted'));
 }
 
@@ -200,7 +199,7 @@ async function runStream(prompt: string, historyMessages: AiConversationMessage[
   const assistantId = crypto.randomUUID();
   resetStreamBuffer();
 
-  chatStore.appendMessage({
+  void chatStore.appendMessage({
     id: assistantId,
     role: 'assistant',
     content: '',
@@ -208,7 +207,7 @@ async function runStream(prompt: string, historyMessages: AiConversationMessage[
     renderMode: 'streaming',
     createdAt: new Date().toISOString(),
     prompt
-  });
+  }, false);
 
   scrollToBottom();
 
@@ -220,7 +219,8 @@ async function runStream(prompt: string, historyMessages: AiConversationMessage[
   try {
     const searchParams = new URLSearchParams({
       prompt,
-      includeContext: includeBusinessContext.value ? '1' : '0'
+      includeContext: includeBusinessContext.value ? '1' : '0',
+      sessionId: activeSession.value?.id ?? ''
     });
 
     if (historyMessages.length) {
@@ -230,7 +230,6 @@ async function runStream(prompt: string, historyMessages: AiConversationMessage[
     await streamSse(`${API_BASE_URL}/ai/stream?${searchParams.toString()}`, {
       signal: controller.signal,
       headers: {
-        Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY) ?? ''}`,
         Accept: 'text/event-stream'
       },
       onMessage(payload) {
@@ -245,8 +244,13 @@ async function runStream(prompt: string, historyMessages: AiConversationMessage[
           );
         }
 
+        if (payload.type === 'tools') {
+          ElMessage.info(locale.value === 'en' ? 'Business data tools loaded' : '已检索业务数据工具上下文');
+        }
+
         if (payload.type === 'done') {
           content = flushAssistantBuffer(content, content, false, false, 'final');
+          void chatStore.updateLastAssistantMessage(content, false, false, 'final', true);
           streaming.value = false;
           abortController.value = null;
         }
@@ -255,9 +259,9 @@ async function runStream(prompt: string, historyMessages: AiConversationMessage[
   } catch (error) {
     content = flushAssistantBuffer(content, content, true, false, 'streaming');
     if ((error as Error).name === 'AbortError') {
-      chatStore.updateLastAssistantMessage(content || t('ai.stopped'), false, false, 'final');
+      void chatStore.updateLastAssistantMessage(content || t('ai.stopped'), false, false, 'final', true);
     } else {
-      chatStore.updateLastAssistantMessage(content || t('ai.failed'), false, true, 'final');
+      void chatStore.updateLastAssistantMessage(content || t('ai.failed'), false, true, 'final', true);
       ElMessage.error(t('ai.streamError'));
     }
     streaming.value = false;
@@ -271,7 +275,7 @@ async function sendMessage() {
   if (!prompt || streaming.value) return;
   const historyMessages = getHistoryWindow();
 
-  chatStore.appendMessage({
+  await chatStore.appendMessage({
     id: crypto.randomUUID(),
     role: 'user',
     content: prompt,

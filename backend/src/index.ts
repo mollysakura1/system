@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import cors from 'cors';
 import express from 'express';
 import morgan from 'morgan';
+import { getDatabasePath, initDatabase } from './database/db.js';
 import router from './routes/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,7 +26,13 @@ for (const envPath of envCandidates) {
 const app = express();
 const PORT = Number(process.env.PORT ?? 3001);
 
-app.use(cors());
+app.set('trust proxy', 1);
+app.use(cors({
+  origin(origin, callback) {
+    callback(null, origin ?? true);
+  },
+  credentials: true
+}));
 app.use(express.json());
 app.use(morgan('dev'));
 
@@ -54,6 +61,9 @@ app.use((_, res) => {
   res.status(404).json({ code: 404, message: 'Not Found', data: null });
 });
 
+await initDatabase();
+
 app.listen(PORT, () => {
   console.log(`backend server running at http://localhost:${PORT}`);
+  console.log(`sqlite database at ${getDatabasePath()}`);
 });

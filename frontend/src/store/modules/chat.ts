@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { CHAT_ACCOUNT_KEY, CHAT_CACHE_KEY } from '../../config';
+import { createAiSessionApi, deleteAiSessionApi, getAiSessionsApi, saveAiMessageApi } from '../../api/ai';
 import type { ChatMessageItem, ChatSession } from '../../types';
 import { getStorage, setStorage } from '../../utils/storage';
 
@@ -42,6 +43,11 @@ function normalizeSessions(sessions: ChatSession[]): ChatSession[] {
   }));
 }
 
+function normalizeRemoteSessions(sessions: ChatSession[]) {
+  const normalized = normalizeSessions(sessions);
+  return normalized.length ? normalized : createInitialState().sessions;
+}
+
 export const useChatStore = defineStore('chat', {
   state: (): ChatState => ({
     ...createInitialState(localStorage.getItem(CHAT_ACCOUNT_KEY) ?? '')
@@ -52,7 +58,7 @@ export const useChatStore = defineStore('chat', {
     }
   },
   actions: {
-    loadForAccount(accountId: string) {
+    async loadForAccount(accountId: string) {
       const sessions = getStorage<ChatSession[]>(getScopedChatKey(accountId), []);
       const initial = sessions.length ? normalizeSessions(sessions) : createInitialState(accountId).sessions;
       this.sessions = initial;
@@ -60,6 +66,15 @@ export const useChatStore = defineStore('chat', {
       this.accountId = accountId;
       localStorage.setItem(CHAT_ACCOUNT_KEY, accountId);
       this.persist();
+
+      try {
+        const { data } = await getAiSessionsApi();
+        this.sessions = normalizeRemoteSessions(data.list);
+        this.activeSessionId = this.sessions[0].id;
+        this.persist();
+      } catch {
+        // Keep local cache as a fast fallback when the backend is temporarily unavailable.
+      }
     },
     resetRuntime() {
       const next = createInitialState('');
@@ -72,13 +87,18 @@ export const useChatStore = defineStore('chat', {
       if (!this.accountId) return;
       setStorage(getScopedChatKey(this.accountId), this.sessions);
     },
-    createSession() {
+    async createSession() {
       const session = createSession();
       this.sessions.unshift(session);
       this.activeSessionId = session.id;
       this.persist();
+      try {
+        await createAiSessionApi(session);
+      } catch {
+        // Local cache keeps the draft session until the next successful backend load.
+      }
     },
-    removeSession(id: string) {
+    async removeSession(id: string) {
       this.sessions = this.sessions.filter((item) => item.id !== id);
 
       if (!this.sessions.length) {
@@ -90,23 +110,45 @@ export const useChatStore = defineStore('chat', {
       }
 
       this.persist();
+      try {
+        await deleteAiSessionApi(id);
+      } catch {
+        // The local removal keeps the UI responsive; backend remains authoritative on reload.
+      }
     },
     setActiveSession(id: string) {
       this.activeSessionId = id;
     },
-    appendMessage(message: ChatMessageItem) {
+    async appendMessage(message: ChatMessageItem, sync = true) {
       const session = this.activeSession;
       if (!session) return;
+      const wasEmpty = session.messages.length === 0;
       session.messages.push(message);
       session.title = session.messages[0]?.content.slice(0, 18) || '';
       session.updatedAt = new Date().toISOString();
       this.persist();
+      if (!sync) return;
+
+      try {
+        if (wasEmpty) {
+          await createAiSessionApi(session);
+        }
+        const { data } = await saveAiMessageApi(session.id, message);
+        const index = this.sessions.findIndex((item) => item.id === session.id);
+        if (index >= 0) {
+          this.sessions[index] = normalizeSessions([data])[0];
+          this.persist();
+        }
+      } catch {
+        // The message remains in local cache and can still be used as a fallback.
+      }
     },
-    updateLastAssistantMessage(
+    async updateLastAssistantMessage(
       content: string,
       loading = true,
       error = false,
-      renderMode: ChatMessageItem['renderMode'] = 'final'
+      renderMode: ChatMessageItem['renderMode'] = 'final',
+      sync = false
     ) {
       const session = this.activeSession;
       if (!session) return;
@@ -118,6 +160,18 @@ export const useChatStore = defineStore('chat', {
       message.renderMode = renderMode;
       session.updatedAt = new Date().toISOString();
       this.persist();
+      if (!sync) return;
+
+      try {
+        const { data } = await saveAiMessageApi(session.id, message);
+        const index = this.sessions.findIndex((item) => item.id === session.id);
+        if (index >= 0) {
+          this.sessions[index] = normalizeSessions([data])[0];
+          this.persist();
+        }
+      } catch {
+        // Final assistant content is kept locally if persistence fails.
+      }
     }
   }
 });

@@ -12,6 +12,7 @@ export async function streamSse(
     method: options.method ?? 'GET',
     headers: options.headers,
     body: options.body,
+    credentials: 'include',
     signal: options.signal
   });
 

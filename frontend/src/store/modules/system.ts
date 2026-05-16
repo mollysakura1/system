@@ -1,8 +1,16 @@
 import { defineStore } from 'pinia';
-import { SYSTEM_CACHE_KEY } from '../../config';
-import { createUserApi, deleteUserApi, getLogsApi, getRolesApi, getUsersApi, updateUserApi } from '../../api/system';
+import {
+  createRoleApi,
+  createUserApi,
+  deleteRoleApi,
+  deleteUserApi,
+  getLogsApi,
+  getRolesApi,
+  getUsersApi,
+  updateRoleApi,
+  updateUserApi
+} from '../../api/system';
 import type { UserRecord } from '../../types';
-import { getStorage, setStorage } from '../../utils/storage';
 
 type SystemRow = Record<string, string | number | boolean | string[]>;
 
@@ -31,18 +39,7 @@ function createState(): SystemState {
 }
 
 export const useSystemStore = defineStore('system', {
-  state: (): SystemState => {
-    const cached = getStorage<Omit<SystemState, 'initialized'> | null>(SYSTEM_CACHE_KEY, null);
-    if (!cached) return createState();
-    return {
-      ...cached,
-      initialized: {
-        users: false,
-        roles: false,
-        logs: false
-      }
-    };
-  },
+  state: (): SystemState => createState(),
   getters: {
     roleOptions(state) {
       return state.roles.map((role) => ({
@@ -52,40 +49,26 @@ export const useSystemStore = defineStore('system', {
     }
   },
   actions: {
-    persist() {
-      setStorage(SYSTEM_CACHE_KEY, {
-        users: this.users,
-        roles: this.roles,
-        logs: this.logs
-      });
-    },
     async ensureUsers(force = false) {
       if (this.initialized.users && !force) return;
       const { data } = await getUsersApi();
       this.users = data.list;
       this.initialized.users = true;
-      this.persist();
     },
     async ensureRoles() {
       if (this.initialized.roles) return;
-      if (this.roles.length) {
-        this.initialized.roles = true;
-        return;
-      }
       const { data } = await getRolesApi();
       this.roles = data.map((item) => ({
         ...item,
         permissions: this.defaultPermissions(String(item.code))
       }));
       this.initialized.roles = true;
-      this.persist();
     },
     async ensureLogs() {
       if (this.initialized.logs) return;
       const { data } = await getLogsApi();
       this.logs = data.list;
       this.initialized.logs = true;
-      this.persist();
     },
     defaultPermissions(code: string) {
       const map: Record<string, string[]> = {
@@ -108,24 +91,23 @@ export const useSystemStore = defineStore('system', {
       await deleteUserApi(id);
       await this.ensureUsers(true);
     },
-    addRole(role: SystemRow) {
-      this.roles.unshift(role);
-      this.persist();
+    async addRole(role: SystemRow) {
+      const { data } = await createRoleApi(role);
+      this.roles.unshift(data);
     },
-    updateRole(id: string, patch: SystemRow) {
+    async updateRole(id: string, patch: SystemRow) {
+      const { data } = await updateRoleApi(id, patch);
       const index = this.roles.findIndex((item) => String(item.id) === id);
       if (index >= 0) {
-        this.roles[index] = { ...this.roles[index], ...patch };
-        this.persist();
+        this.roles[index] = data;
       }
     },
-    removeRole(id: string) {
+    async removeRole(id: string) {
+      await deleteRoleApi(id);
       this.roles = this.roles.filter((item) => String(item.id) !== id);
-      this.persist();
     },
     removeLog(id: string) {
       this.logs = this.logs.filter((item) => String(item.id) !== id);
-      this.persist();
     }
   }
 });

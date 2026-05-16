@@ -20,8 +20,8 @@ export function getCaptchaApi() {
   return request.get<never, { data: CaptchaResult }>('/auth/captcha');
 }
 
-export function refreshTokenApi(refreshToken: string) {
-  return request.post<never, { data: { accessToken: string; refreshToken: string } }>('/auth/refresh', { refreshToken });
+export function refreshTokenApi() {
+  return request.post<never, { data: LoginResult }>('/auth/refresh');
 }
 
 export function getProfileApi() {
@@ -30,4 +30,8 @@ export function getProfileApi() {
 
 export function updateProfileApi(payload: Partial<Pick<UserProfile, 'avatar' | 'name' | 'phone' | 'email' | 'address'>> & { password?: string }) {
   return request.patch<never, { data: UserProfile }>('/user/profile', payload);
+}
+
+export function logoutApi() {
+  return request.post<never, { data: null }>('/auth/logout');
 }

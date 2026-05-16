@@ -15,7 +15,7 @@ const router = createRouter({
 
 async function ensureDynamicRoutes() {
   const userStore = useUserStore();
-  if (userStore.dynamicRoutesReady || !userStore.accessToken) return false;
+  if (userStore.dynamicRoutesReady) return false;
 
   const [, menus] = await Promise.all([userStore.fetchProfile(), userStore.fetchMenus()]);
   const routes = transformMenusToRoutes(menus);
@@ -43,11 +43,6 @@ router.beforeEach(async (to, _, next) => {
       return;
     }
     next();
-    return;
-  }
-
-  if (!userStore.accessToken) {
-    next('/login');
     return;
   }
 

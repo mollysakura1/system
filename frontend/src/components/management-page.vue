@@ -374,12 +374,12 @@ function refreshLocalRows() {
   }
 }
 
-function handleSubmit(payload: RowData) {
+async function handleSubmit(payload: RowData) {
   if (isEditing.value && currentRow.value) {
     const normalized = normalizeEditPayload(payload);
 
     if (isBusinessType(props.apiType)) {
-      businessStore.updateRow(props.apiType, String(currentRow.value.id), normalized);
+      await businessStore.updateRow(props.apiType, String(currentRow.value.id), normalized);
       refreshLocalRows();
     } else {
       const index = rows.value.findIndex((item) => item.id === currentRow.value?.id);
@@ -393,7 +393,7 @@ function handleSubmit(payload: RowData) {
     const created = buildCreateRow(payload);
 
     if (isBusinessType(props.apiType)) {
-      businessStore.addRow(props.apiType, created);
+      await businessStore.addRow(props.apiType, created);
       refreshLocalRows();
     } else {
       rows.value.unshift(created);
@@ -413,7 +413,7 @@ async function handleDelete(row: RowData) {
   });
 
   if (isBusinessType(props.apiType)) {
-    businessStore.removeRow(props.apiType, String(row.id));
+    await businessStore.removeRow(props.apiType, String(row.id));
     refreshLocalRows();
   } else {
     rows.value = rows.value.filter((item) => item.id !== row.id);

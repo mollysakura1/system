@@ -1,6 +1,7 @@
 import { ElMessage } from 'element-plus';
 import router from '../router';
-import { LAST_ACTIVE_AT_KEY, SESSION_IDLE_TIMEOUT, TOKEN_KEY } from '../config';
+import { LAST_ACTIVE_AT_KEY, SESSION_IDLE_TIMEOUT } from '../config';
+import { API_BASE_URL } from '../config/env';
 import { useUserStore } from '../store/modules/user';
 
 const ACTIVITY_EVENTS: Array<keyof WindowEventMap> = ['click', 'keydown', 'mousedown', 'mousemove', 'scroll', 'touchstart'];
@@ -10,8 +11,8 @@ let started = false;
 let idleTimer: number | null = null;
 let lastSavedAt = 0;
 
-function hasSessionToken() {
-  return Boolean(localStorage.getItem(TOKEN_KEY));
+function hasRuntimeSession() {
+  return Boolean(useUserStore().accessToken);
 }
 
 function getLastActiveAt() {
@@ -26,7 +27,7 @@ function clearIdleTimer() {
 }
 
 export function isSessionIdleExpired() {
-  if (!hasSessionToken()) return false;
+  if (!hasRuntimeSession()) return false;
   const lastActiveAt = getLastActiveAt();
   return !lastActiveAt || Date.now() - lastActiveAt >= SESSION_IDLE_TIMEOUT;
 }
@@ -39,7 +40,12 @@ export function clearSessionActivity() {
 
 export function expireSession(showMessage = true) {
   const userStore = useUserStore();
-  if (!userStore.accessToken && !hasSessionToken()) return;
+  if (!userStore.accessToken) return;
+
+  void fetch(`${API_BASE_URL}/auth/logout`, {
+    method: 'POST',
+    credentials: 'include'
+  }).catch(() => undefined);
 
   userStore.clearAuth();
   clearSessionActivity();
@@ -55,7 +61,7 @@ export function expireSession(showMessage = true) {
 
 function scheduleIdleTimer() {
   clearIdleTimer();
-  if (!hasSessionToken()) return;
+  if (!hasRuntimeSession()) return;
 
   const lastActiveAt = getLastActiveAt();
   const remaining = SESSION_IDLE_TIMEOUT - (Date.now() - lastActiveAt);
@@ -71,7 +77,7 @@ function scheduleIdleTimer() {
 }
 
 export function touchSessionActivity(force = false) {
-  if (!hasSessionToken()) return;
+  if (!hasRuntimeSession()) return;
 
   const now = Date.now();
   if (force || now - lastSavedAt >= TOUCH_INTERVAL) {
@@ -84,7 +90,7 @@ export function touchSessionActivity(force = false) {
 
 export function setupSessionActivityTracking() {
   if (started) {
-    if (hasSessionToken()) {
+    if (hasRuntimeSession()) {
       if (isSessionIdleExpired()) {
         expireSession(false);
       } else {
@@ -114,7 +120,7 @@ export function setupSessionActivityTracking() {
     }
   });
 
-  if (hasSessionToken()) {
+  if (hasRuntimeSession()) {
     if (isSessionIdleExpired()) {
       expireSession(false);
     } else {

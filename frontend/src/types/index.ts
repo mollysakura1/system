@@ -1,8 +1,6 @@
 export type RoleCode = 'super-admin' | 'operator' | 'analyst' | 'merchant';
 
 export interface LoginResult {
-  accessToken: string;
-  refreshToken: string;
   role: RoleCode;
 }
 
@@ -101,6 +99,7 @@ export interface ChatMessageItem {
 export interface ChatSession {
   id: string;
   title: string;
+  summary?: string;
   messages: ChatMessageItem[];
   updatedAt: string;
 }

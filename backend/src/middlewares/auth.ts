@@ -1,14 +1,17 @@
 import type { NextFunction, Request, Response } from 'express';
-import { users } from '../mock/data.js';
+import type { CurrentUser } from '../types/auth.js';
+import { getUserById } from '../database/db.js';
 import { verifyAccessToken } from '../utils/token.js';
+import { ACCESS_TOKEN_COOKIE, getCookieValue } from '../utils/auth-cookie.js';
 
 export interface AuthRequest extends Request {
-  user?: typeof users[number];
+  user?: CurrentUser;
 }
 
 export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
   const authorization = req.headers.authorization;
-  const token = authorization?.replace('Bearer ', '');
+  const bearerToken = authorization?.startsWith('Bearer ') ? authorization.replace('Bearer ', '') : '';
+  const token = bearerToken || getCookieValue(req, ACCESS_TOKEN_COOKIE);
 
   if (!token) {
     res.status(401).json({ code: 401, message: '未登录', data: null });
@@ -17,7 +20,7 @@ export function authMiddleware(req: AuthRequest, res: Response, next: NextFuncti
 
   try {
     const payload = verifyAccessToken(token);
-    const user = users.find((item) => item.id === payload.userId);
+    const user = getUserById(payload.userId);
 
     if (!user) {
       res.status(401).json({ code: 401, message: '用户不存在', data: null });

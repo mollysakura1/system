@@ -16,13 +16,15 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
-    "openai": "^6.33.0"
+    "openai": "^6.33.0",
+    "sql.js": "^1.14.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/morgan": "^1.9.10",
+    "@types/sql.js": "^1.4.11",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }

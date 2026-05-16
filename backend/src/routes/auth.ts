@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
-import { createDefaultAvatar, credentialMap, getUserByUsername, users } from '../mock/data.js';
+import { createDefaultAvatar } from '../mock/data.js';
+import { createUser, getCredential, getUserById, getUserByUsername } from '../database/db.js';
 import { ok } from '../utils/response.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../utils/token.js';
+import { clearAuthCookies, getCookieValue, REFRESH_TOKEN_COOKIE, setAuthCookies } from '../utils/auth-cookie.js';
 import type { CaptchaResult, LoginBody, RegisterBody, RoleCode } from '../types/auth.js';
 
 const router = Router();
@@ -115,13 +117,13 @@ router.post('/register', (req, res) => {
     return;
   }
 
-  if (credentialMap[normalizedUsername] || getUserByUsername(normalizedUsername)) {
+  if (getCredential(normalizedUsername) || getUserByUsername(normalizedUsername)) {
     res.status(400).json({ code: 400, message: 'Username already exists', data: null });
     return;
   }
 
   const userId = `u${Date.now()}`;
-  users.unshift({
+  createUser({
     id: userId,
     username: normalizedUsername,
     name: normalizedName,
@@ -131,12 +133,7 @@ router.post('/register', (req, res) => {
     phone: '',
     address: '',
     department: normalizedRole === 'merchant' ? 'Merchant Ops' : 'Growth'
-  });
-  credentialMap[normalizedUsername] = {
-    password: normalizedPassword,
-    role: normalizedRole,
-    userId
-  };
+  }, normalizedPassword);
 
   res.json(ok({ userId }));
 });
@@ -144,7 +141,7 @@ router.post('/register', (req, res) => {
 router.post('/login', (req, res) => {
   cleanupCaptchaStore();
   const { username, password, captchaId, captchaCode } = req.body as LoginBody;
-  const credential = credentialMap[username];
+  const credential = getCredential(username);
   const captcha = captchaStore.get(captchaId);
 
   if (!captchaId || !captchaCode || !captcha || captcha.expiresAt <= Date.now()) {
@@ -166,32 +163,45 @@ router.post('/login', (req, res) => {
     return;
   }
 
-  const user = users.find((item) => item.id === credential.userId)!;
-
-  res.json(ok({
+  const user = getUserById(credential.userId)!;
+  const tokens = {
     accessToken: signAccessToken({ userId: user.id, role: user.role }),
-    refreshToken: signRefreshToken({ userId: user.id, role: user.role }),
+    refreshToken: signRefreshToken({ userId: user.id, role: user.role })
+  };
+
+  setAuthCookies(req, res, tokens);
+  res.json(ok({
     role: user.role
   }));
 });
 
 router.post('/refresh', (req, res) => {
-  const refreshToken = req.body?.refreshToken as string | undefined;
+  const refreshToken = getCookieValue(req, REFRESH_TOKEN_COOKIE);
 
   if (!refreshToken) {
-    res.status(400).json({ code: 400, message: 'Missing refresh token', data: null });
+    clearAuthCookies(req, res);
+    res.status(401).json({ code: 401, message: 'Missing refresh token', data: null });
     return;
   }
 
   try {
     const payload = verifyRefreshToken(refreshToken);
-    res.json(ok({
+    const tokens = {
       accessToken: signAccessToken({ userId: payload.userId, role: payload.role }),
       refreshToken: signRefreshToken({ userId: payload.userId, role: payload.role })
-    }));
+    };
+
+    setAuthCookies(req, res, tokens);
+    res.json(ok({ role: payload.role }));
   } catch {
+    clearAuthCookies(req, res);
     res.status(401).json({ code: 401, message: 'Refresh token has expired', data: null });
   }
+});
+
+router.post('/logout', (req, res) => {
+  clearAuthCookies(req, res);
+  res.json(ok(null));
 });
 
 export default router;

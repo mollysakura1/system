@@ -1,7 +1,15 @@
 import { defineStore } from 'pinia';
-import { BUSINESS_CACHE_KEY } from '../../config';
-import { getActivitiesApi, getChannelsApi, getCouponsApi, getMerchantsApi, getOrdersApi, getProductsApi } from '../../api/business';
-import { getStorage, setStorage } from '../../utils/storage';
+import {
+  createBusinessResourceApi,
+  deleteBusinessResourceApi,
+  getActivitiesApi,
+  getChannelsApi,
+  getCouponsApi,
+  getMerchantsApi,
+  getOrdersApi,
+  getProductsApi,
+  updateBusinessResourceApi
+} from '../../api/business';
 import type { BusinessEntityType } from '../../types';
 
 type BusinessRow = Record<string, string | number | boolean>;
@@ -39,8 +47,7 @@ function createEmptyState(): BusinessState {
 
 export const useBusinessStore = defineStore('business', {
   state: (): BusinessState => {
-    const cached = getStorage<Partial<BusinessState> | null>(BUSINESS_CACHE_KEY, null);
-    return cached ? { ...createEmptyState(), ...cached, initialized: {} } : createEmptyState();
+    return createEmptyState();
   },
   getters: {
     merchantOptions(state) {
@@ -57,46 +64,30 @@ export const useBusinessStore = defineStore('business', {
     }
   },
   actions: {
-    persist() {
-      setStorage(BUSINESS_CACHE_KEY, {
-        merchants: this.merchants,
-        products: this.products,
-        orders: this.orders,
-        activities: this.activities,
-        coupons: this.coupons,
-        channels: this.channels
-      });
-    },
     getRows(type: BusinessEntityType) {
       return this[type];
     },
     async ensureLoaded(type: BusinessEntityType) {
       if (this.initialized[type]) return;
 
-      if (this[type].length) {
-        this.initialized[type] = true;
-        return;
-      }
-
       const { data } = await fetcherMap[type]();
       this[type] = data.list as BusinessRow[];
       this.initialized[type] = true;
-      this.persist();
     },
-    addRow(type: BusinessEntityType, row: BusinessRow) {
-      this[type] = [row, ...this[type]];
-      this.persist();
+    async addRow(type: BusinessEntityType, row: BusinessRow) {
+      const { data } = await createBusinessResourceApi(type, row);
+      this[type] = [data, ...this[type]];
     },
-    updateRow(type: BusinessEntityType, rowId: string, patch: BusinessRow) {
+    async updateRow(type: BusinessEntityType, rowId: string, patch: BusinessRow) {
+      const { data } = await updateBusinessResourceApi(type, rowId, patch);
       const index = this[type].findIndex((item) => String(item.id) === rowId);
       if (index >= 0) {
-        this[type][index] = { ...this[type][index], ...patch };
-        this.persist();
+        this[type][index] = data;
       }
     },
-    removeRow(type: BusinessEntityType, rowId: string) {
+    async removeRow(type: BusinessEntityType, rowId: string) {
+      await deleteBusinessResourceApi(type, rowId);
       this[type] = this[type].filter((item) => String(item.id) !== rowId);
-      this.persist();
     }
   }
 });

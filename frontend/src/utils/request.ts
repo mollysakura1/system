@@ -1,7 +1,6 @@
 import axios from 'axios';
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { ElMessage } from 'element-plus';
-import { REFRESH_TOKEN_KEY, TOKEN_KEY } from '../config';
 import { API_BASE_URL } from '../config/env';
 import i18n from '../locales';
 import router from '../router';
@@ -10,21 +9,23 @@ import { expireSession, isSessionIdleExpired, touchSessionActivity } from './ses
 
 const service = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000
+  timeout: 15000,
+  withCredentials: true
 });
 
-let refreshPromise: Promise<string> | null = null;
+let refreshPromise: Promise<unknown> | null = null;
 
 service.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (token) {
-    if (isSessionIdleExpired()) {
-      expireSession();
-      return Promise.reject(new axios.Cancel('Session idle timeout'));
-    }
-    config.headers.Authorization = `Bearer ${token}`;
+  const userStore = useUserStore();
+  if (userStore.accessToken && isSessionIdleExpired()) {
+    expireSession();
+    return Promise.reject(new axios.Cancel('Session idle timeout'));
+  }
+
+  if (userStore.accessToken) {
     touchSessionActivity();
   }
+
   return config;
 });
 
@@ -39,19 +40,11 @@ service.interceptors.response.use(
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry && !isRefreshRequest) {
       originalRequest._retry = true;
 
-      const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY) ?? '';
-      if (!refreshToken) {
-        userStore.clearAuth();
-        router.replace('/login');
-        return Promise.reject(error);
-      }
-
       try {
         refreshPromise ??= userStore.refreshTokenAction().finally(() => {
           refreshPromise = null;
         });
-        const accessToken = await refreshPromise;
-        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        await refreshPromise;
         return service(originalRequest);
       } catch {
         userStore.clearAuth();

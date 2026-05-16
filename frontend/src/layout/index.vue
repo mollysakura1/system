@@ -151,9 +151,9 @@ async function markRead(id: string) {
   ElMessage.success(isEn.value ? 'Marked as read' : '已标记为已读');
 }
 
-function handleLogout() {
+async function handleLogout() {
   appStore.clearVisitedTabs();
-  userStore.clearAuth();
+  await userStore.logoutAction();
   router.replace('/login');
 }
 

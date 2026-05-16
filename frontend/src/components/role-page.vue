@@ -139,7 +139,7 @@ function openPermission(role: RoleRow) {
   permissionVisible.value = true;
 }
 
-function submitRole(payload: Record<string, string | number | boolean>) {
+async function submitRole(payload: Record<string, string | number | boolean>) {
   const normalized = {
     id: String(payload.id || `role-${Date.now()}`),
     name: String(payload.name),
@@ -149,26 +149,26 @@ function submitRole(payload: Record<string, string | number | boolean>) {
   };
 
   if (isEditing.value && currentRole.value) {
-    systemStore.updateRole(String(currentRole.value.id), normalized);
+    await systemStore.updateRole(String(currentRole.value.id), normalized);
     ElMessage.success(t('roles.updated'));
   } else {
-    systemStore.addRole(normalized);
+    await systemStore.addRole(normalized);
     ElMessage.success(t('roles.created'));
   }
 
   modalVisible.value = false;
 }
 
-function savePermissions() {
+async function savePermissions() {
   if (!currentRole.value) return;
-  systemStore.updateRole(String(currentRole.value.id), { permissions: [...selectedPermissions.value] });
+  await systemStore.updateRole(String(currentRole.value.id), { permissions: [...selectedPermissions.value] });
   permissionVisible.value = false;
   ElMessage.success(t('roles.permissionUpdated'));
 }
 
 async function removeRole(id: string | number | boolean | string[]) {
   await ElMessageBox.confirm(t('roles.deleteConfirm'), t('common.confirmDelete'), { type: 'warning' });
-  systemStore.removeRole(String(id));
+  await systemStore.removeRole(String(id));
   ElMessage.success(t('roles.deleted'));
 }
 
