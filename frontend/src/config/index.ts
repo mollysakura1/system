@@ -5,4 +5,7 @@ export const CHAT_ACCOUNT_KEY = 'ai-ops-chat-account';
 export const BUSINESS_CACHE_KEY = 'ai-ops-business-cache';
 export const SYSTEM_CACHE_KEY = 'ai-ops-system-cache';
 export const LAST_ACTIVE_AT_KEY = 'ai-ops-last-active-at';
+export const CHAT_MAX_SESSIONS = 20;
+export const CHAT_MAX_MESSAGES_PER_SESSION = 100;
+export const CHAT_MAX_MESSAGE_CHARS = 5000;
 export const SESSION_IDLE_TIMEOUT = 60 * 60 * 1000;

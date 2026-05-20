@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { CHAT_ACCOUNT_KEY, CHAT_CACHE_KEY } from '../../config';
+import { CHAT_ACCOUNT_KEY, CHAT_CACHE_KEY, CHAT_MAX_MESSAGE_CHARS, CHAT_MAX_MESSAGES_PER_SESSION, CHAT_MAX_SESSIONS } from '../../config';
 import { createAiSessionApi, deleteAiSessionApi, getAiSessionsApi, saveAiMessageApi } from '../../api/ai';
 import type { ChatMessageItem, ChatSession } from '../../types';
 import { getStorage, setStorage } from '../../utils/storage';
@@ -85,7 +85,30 @@ export const useChatStore = defineStore('chat', {
     },
     persist() {
       if (!this.accountId) return;
-      setStorage(getScopedChatKey(this.accountId), this.sessions);
+
+      const trimmed = this.sessions
+        .slice(0, CHAT_MAX_SESSIONS)
+        .map((s) => ({
+          ...s,
+          messages: s.messages.slice(-CHAT_MAX_MESSAGES_PER_SESSION).map((m) => ({
+            ...m,
+            content: m.content.slice(0, CHAT_MAX_MESSAGE_CHARS)
+          }))
+        }));
+
+      try {
+        setStorage(getScopedChatKey(this.accountId), trimmed);
+      } catch {
+        const fallback = trimmed.slice(0, Math.ceil(trimmed.length / 2)).map((s) => ({
+          ...s,
+          messages: s.messages.slice(-Math.ceil(CHAT_MAX_MESSAGES_PER_SESSION / 2))
+        }));
+        try {
+          setStorage(getScopedChatKey(this.accountId), fallback);
+        } catch {
+          // Both attempts failed; the next server load will repopulate.
+        }
+      }
     },
     async createSession() {
       const session = createSession();

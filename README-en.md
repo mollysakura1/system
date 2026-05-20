@@ -239,6 +239,18 @@ Before sending a prompt, the front end extracts recent complete turns from the a
 - Business-context mode: latest 3 complete turns
 - Both front end and back end enforce per-message and total-context length budgets
 
+### 5. Local Chat Cache Limit
+
+AI chat sessions maintain a local copy in `localStorage` for fast rendering and backend-failure fallback. To prevent `localStorage` quota exhaustion after extended use, data is trimmed before being persisted:
+
+- At most the last 20 sessions
+- At most the last 100 messages per session
+- Each message content truncated to 5000 characters
+
+If the first write attempt fails (e.g., quota exceeded), the session count and message count are halved for a second attempt. If both attempts fail, the write is silently skipped and the next server load serves as the source of truth.
+
+All constants are defined in `frontend/src/config/index.ts`, and the logic is centralized in the `persist()` method without affecting Pinia runtime state.
+
 ## 6. Project Structure
 
 ```text
