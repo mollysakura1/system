@@ -219,8 +219,13 @@ async function updateHtml(content: string, role: ChatMessageItem['role'], render
       breaks: true
     });
 
+    const withCodePreview = rendered.replace(
+      /<pre><code(\s*class="language-[^"]*")?>/g,
+      '<pre style="background:#0d1117;border-radius:6px;padding:16px;overflow:auto"><code style="color:#c9d1d1;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace"$1>'
+    );
+
     if (currentToken === renderToken) {
-      html.value = rendered;
+      html.value = withCodePreview;
     }
 
     return;
