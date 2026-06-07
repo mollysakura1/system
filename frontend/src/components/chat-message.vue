@@ -37,6 +37,7 @@ import { computed, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { CopyDocument, EditPen, RefreshRight } from '@element-plus/icons-vue';
 import { useI18n } from 'vue-i18n';
+import DOMPurify from 'dompurify';
 import type { ChatMessageItem } from '../types';
 import { useAppStore } from '../store/modules/app';
 import { useUserStore } from '../store/modules/user';
@@ -76,6 +77,12 @@ function escapeHtml(value: string) {
 
 function renderPlainText(value: string) {
   return escapeHtml(value).replaceAll('\n', '<br />');
+}
+
+function sanitizeHtml(value: string) {
+  return DOMPurify.sanitize(value, {
+    USE_PROFILES: { html: true }
+  });
 }
 
 function countTableColumns(line: string) {
@@ -206,7 +213,7 @@ async function updateHtml(content: string, role: ChatMessageItem['role'], render
 
   if (role === 'user') {
     if (currentToken === renderToken) {
-      html.value = renderPlainText(content);
+      html.value = sanitizeHtml(renderPlainText(content));
     }
     return;
   }
@@ -225,7 +232,7 @@ async function updateHtml(content: string, role: ChatMessageItem['role'], render
     );
 
     if (currentToken === renderToken) {
-      html.value = withCodePreview;
+      html.value = sanitizeHtml(withCodePreview);
     }
 
     return;
@@ -248,7 +255,7 @@ async function updateHtml(content: string, role: ChatMessageItem['role'], render
   );
 
   if (currentToken === renderToken) {
-    html.value = highlightedHtml;
+    html.value = sanitizeHtml(highlightedHtml);
   }
 }
 

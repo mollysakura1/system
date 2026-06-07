@@ -74,7 +74,7 @@ backend/data/app.sqlite
 
 - 会话列表、新建会话、删除会话
 - Prompt 模板
-- Markdown 渲染与代码高亮
+- Markdown 渲染、代码高亮与 DOMPurify HTML 清洗
 - 停止生成、重新生成、错误提示
 - 支持切换是否发送运营上下文
 - 支持最近对话窗口 + 后端摘要记忆
@@ -190,7 +190,26 @@ data: {"type":"chunk","content":"..."}
 data: {"type":"done"}
 ```
 
-### 2. 后端受控工具调用
+### 2. Markdown 渲染安全
+
+AI 消息渲染集中在 `frontend/src/components/chat-message.vue`。前端会将 assistant 回复按渲染阶段处理：
+
+- 流式阶段：先通过 `patchStreamingMarkdown()` 临时补全未闭合的代码块、行内代码和加粗标记，再使用 `marked` 渲染 Markdown。
+- 最终阶段：使用 `marked` 渲染完整 Markdown，并通过 `highlight.js` 对代码块做高亮。
+- 写入 `v-html` 前：统一调用 `DOMPurify.sanitize()` 清洗 HTML，降低模型输出或 Markdown HTML 片段带来的 XSS 风险。
+- 用户消息：先进行 HTML 转义和换行转换，再经过 DOMPurify 清洗后渲染。
+
+渲染链路：
+
+```text
+message.content
+-> marked.parse()
+-> highlight.js（最终阶段）
+-> DOMPurify.sanitize()
+-> v-html
+```
+
+### 3. 后端受控工具调用
 
 AI 工具调用在后端实现，不允许模型直接执行 SQL。
 
@@ -215,7 +234,7 @@ AI 工具调用在后端实现，不允许模型直接执行 SQL。
 
 “发送运营上下文”开启时会启用工具调用；关闭后只进行普通对话、会话摘要和最近消息上下文。
 
-### 3. 会话摘要记忆
+### 4. 会话摘要记忆
 
 每次 AI 最终回复保存到后端后，后端会把：
 
@@ -231,7 +250,7 @@ ai_chat_sessions.summary
 
 后续同一会话继续提问时，后端会自动读取该摘要并传给 AI。
 
-### 4. 最近消息窗口
+### 5. 最近消息窗口
 
 前端发送问题前，会从当前会话提取最近完整问答作为历史上下文：
 
@@ -239,7 +258,7 @@ ai_chat_sessions.summary
 - 开启运营上下文时保留最近 3 轮完整问答
 - 前后端都会限制单条消息和总上下文长度
 
-### 5. 本地聊天缓存上限
+### 6. 本地聊天缓存上限
 
 AI 聊天会话在 `localStorage` 中保留本地副本用于快速渲染和后端失败兜底。为防止长时间使用导致 `localStorage` 超出配额，持久化写入前会自动瘦身：
 

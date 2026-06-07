@@ -74,7 +74,7 @@ System management data strategy:
 
 - Session list, new session, and session deletion
 - Prompt templates
-- Markdown rendering and code highlighting
+- Markdown rendering, code highlighting, and DOMPurify HTML sanitization
 - Stop generation, regeneration, and error hints
 - Toggle for whether business context is sent to AI
 - Recent-message window plus backend session summary memory
@@ -190,7 +190,26 @@ data: {"type":"chunk","content":"..."}
 data: {"type":"done"}
 ```
 
-### 2. Backend-Controlled Tool Calling
+### 2. Markdown Rendering Security
+
+AI message rendering is centralized in `frontend/src/components/chat-message.vue`. Assistant responses are handled by render phase:
+
+- Streaming phase: `patchStreamingMarkdown()` temporarily closes unfinished code fences, inline code, and bold markers before Markdown is rendered with `marked`.
+- Final phase: complete Markdown is rendered with `marked`, and code blocks are highlighted with `highlight.js`.
+- Before writing to `v-html`: all generated HTML is passed through `DOMPurify.sanitize()` to reduce XSS risk from model output or embedded Markdown HTML.
+- User messages: content is HTML-escaped, line breaks are converted, and the result is also sanitized before rendering.
+
+Rendering pipeline:
+
+```text
+message.content
+-> marked.parse()
+-> highlight.js (final phase)
+-> DOMPurify.sanitize()
+-> v-html
+```
+
+### 3. Backend-Controlled Tool Calling
 
 Tool calling is implemented on the back end. The model is not allowed to execute SQL directly.
 
@@ -215,7 +234,7 @@ Current business retrieval capabilities:
 
 Tool calling is enabled when the “Send business context to AI” toggle is on. If it is off, the assistant uses ordinary chat, session summary, and recent-message context only.
 
-### 3. Session Summary Memory
+### 4. Session Summary Memory
 
 After each final assistant response is saved, the back end merges:
 
@@ -231,7 +250,7 @@ ai_chat_sessions.summary
 
 The next request in the same session automatically reads this summary and sends it to the model.
 
-### 4. Recent Message Window
+### 5. Recent Message Window
 
 Before sending a prompt, the front end extracts recent complete turns from the active session:
 
@@ -239,7 +258,7 @@ Before sending a prompt, the front end extracts recent complete turns from the a
 - Business-context mode: latest 3 complete turns
 - Both front end and back end enforce per-message and total-context length budgets
 
-### 5. Local Chat Cache Limit
+### 6. Local Chat Cache Limit
 
 AI chat sessions maintain a local copy in `localStorage` for fast rendering and backend-failure fallback. To prevent `localStorage` quota exhaustion after extended use, data is trimmed before being persisted:
 
