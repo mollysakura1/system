@@ -198,8 +198,8 @@ Front-end streaming consumption uses two buffering layers:
 Display-layer flush strategy:
 
 - When the page is visible: `requestAnimationFrame` aligns flushing with browser painting, while `STREAM_FLUSH_INTERVAL` keeps a minimum flush interval.
-- When the page is hidden: `setTimeout` acts as a background fallback so content does not stay in the buffer indefinitely when rAF is throttled or paused.
-- When the page becomes visible again: `visibilitychange` is monitored, and pending `streamBuffer` content is flushed immediately.
+- When the page is hidden: `streamBuffer` continues to accumulate chunks, but Pinia updates, Markdown parsing, and DOM rendering are skipped to reduce background CPU work.
+- When the page becomes visible again: `visibilitychange` is monitored, and pending `streamBuffer` content is flushed immediately to catch up on content received while hidden.
 - On `done`, errors, stop generation, and component unmount: the current buffer is force-flushed or scheduled work is cleared to avoid losing tail content or letting stale tasks update the page.
 
 ### 2. Markdown Rendering Security

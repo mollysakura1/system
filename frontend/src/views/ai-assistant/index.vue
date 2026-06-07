@@ -98,7 +98,6 @@ const lastRequest = ref({ prompt: '', includeContext: includeBusinessContext.val
 const scrollbarRef = ref<InstanceType<typeof ElScrollbar>>();
 const inputRef = ref<InstanceType<typeof ElInput>>();
 const STREAM_FLUSH_INTERVAL = 50;
-const BACKGROUND_FLUSH_INTERVAL = 100;
 const DEFAULT_CONTEXT_TURNS = 5;
 const DEFAULT_CONTEXT_CHARS = 2400;
 const BUSINESS_CONTEXT_TURNS = 3;
@@ -200,6 +199,8 @@ function scheduleRafFlush() {
   if (streamRafId !== null) return;
   streamRafId = window.requestAnimationFrame(() => {
     streamRafId = null;
+    if (document.visibilityState !== 'visible') return;
+
     const elapsed = Date.now() - lastStreamFlushAt;
     if (elapsed >= STREAM_FLUSH_INTERVAL) {
       if (streamFlushTimer !== null) {
@@ -230,14 +231,15 @@ function scheduleAssistantFlush(
 
   if (document.visibilityState === 'visible') {
     scheduleRafFlush();
-    scheduleTimerFlush(BACKGROUND_FLUSH_INTERVAL);
-    return;
   }
-
-  scheduleTimerFlush(BACKGROUND_FLUSH_INTERVAL);
 }
 
 function handleVisibilityChange() {
+  if (document.visibilityState !== 'visible') {
+    clearScheduledFlush();
+    return;
+  }
+
   if (document.visibilityState === 'visible' && streamBuffer) {
     flushActiveAssistantBuffer(true, false, 'streaming');
   }

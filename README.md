@@ -198,8 +198,8 @@ data: {"type":"done"}
 展示层刷新策略：
 
 - 页面可见时：使用 `requestAnimationFrame` 对齐浏览器绘制，并通过 `STREAM_FLUSH_INTERVAL` 保持最小刷新间隔。
-- 页面隐藏时：使用 `setTimeout` 作为后台兜底刷新，避免 rAF 在后台降频或暂停导致内容长期停留在缓冲区。
-- 页面从后台回到前台时：监听 `visibilitychange`，若 `streamBuffer` 仍有内容则立即 flush。
+- 页面隐藏时：只继续累积 `streamBuffer`，不触发 Pinia 更新、Markdown 解析和 DOM 渲染，减少后台 CPU 消耗。
+- 页面从后台回到前台时：监听 `visibilitychange`，若 `streamBuffer` 仍有内容则立即 flush，补齐隐藏期间收到的内容。
 - `done`、异常、停止生成和组件卸载时：都会强制 flush 或清理调度器，避免尾部内容丢失或旧任务继续更新页面。
 
 ### 2. Markdown 渲染安全
