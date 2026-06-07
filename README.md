@@ -190,6 +190,18 @@ data: {"type":"chunk","content":"..."}
 data: {"type":"done"}
 ```
 
+前端流式消费分为两层缓冲：
+
+- 协议缓冲：`frontend/src/utils/sse.ts` 使用 `ReadableStream` reader 和 `TextDecoder` 读取响应体，按 `\n\n` 拼接完整 SSE 事件，再解析 `data:` JSON。
+- 展示缓冲：AI 页面使用 `streamBuffer` 暂存已经解析出的文本 chunk，避免每个 token 都触发 Pinia 更新、Markdown 解析和 DOM 渲染。
+
+展示层刷新策略：
+
+- 页面可见时：使用 `requestAnimationFrame` 对齐浏览器绘制，并通过 `STREAM_FLUSH_INTERVAL` 保持最小刷新间隔。
+- 页面隐藏时：使用 `setTimeout` 作为后台兜底刷新，避免 rAF 在后台降频或暂停导致内容长期停留在缓冲区。
+- 页面从后台回到前台时：监听 `visibilitychange`，若 `streamBuffer` 仍有内容则立即 flush。
+- `done`、异常、停止生成和组件卸载时：都会强制 flush 或清理调度器，避免尾部内容丢失或旧任务继续更新页面。
+
 ### 2. Markdown 渲染安全
 
 AI 消息渲染集中在 `frontend/src/components/chat-message.vue`。前端会将 assistant 回复按渲染阶段处理：

@@ -71,7 +71,7 @@
 
 <script setup lang="ts">
 import dayjs from 'dayjs';
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useI18n } from 'vue-i18n';
 import type { ElInput, ElScrollbar } from 'element-plus';
@@ -98,13 +98,23 @@ const lastRequest = ref({ prompt: '', includeContext: includeBusinessContext.val
 const scrollbarRef = ref<InstanceType<typeof ElScrollbar>>();
 const inputRef = ref<InstanceType<typeof ElInput>>();
 const STREAM_FLUSH_INTERVAL = 50;
+const BACKGROUND_FLUSH_INTERVAL = 100;
 const DEFAULT_CONTEXT_TURNS = 5;
 const DEFAULT_CONTEXT_CHARS = 2400;
 const BUSINESS_CONTEXT_TURNS = 3;
 const BUSINESS_CONTEXT_CHARS = 1600;
 
 let streamBuffer = '';
+let streamRafId: number | null = null;
 let streamFlushTimer: number | null = null;
+let lastStreamFlushAt = 0;
+let activeStreamFlush:
+  | {
+      getCurrentContent: () => string;
+      setCurrentContent: (nextContent: string) => void;
+      fallbackContent: string;
+    }
+  | null = null;
 
 const activeSession = computed(() => chatStore.activeSession);
 const canRetry = computed(() => Boolean(lastRequest.value.prompt && activeSession.value));
@@ -118,13 +128,21 @@ function scrollToBottom() {
   });
 }
 
-function resetStreamBuffer() {
-  streamBuffer = '';
-
+function clearScheduledFlush() {
+  if (streamRafId !== null) {
+    window.cancelAnimationFrame(streamRafId);
+    streamRafId = null;
+  }
   if (streamFlushTimer !== null) {
     window.clearTimeout(streamFlushTimer);
     streamFlushTimer = null;
   }
+}
+
+function resetStreamBuffer() {
+  streamBuffer = '';
+  activeStreamFlush = null;
+  clearScheduledFlush();
 }
 
 function flushAssistantBuffer(
@@ -135,10 +153,68 @@ function flushAssistantBuffer(
   renderMode: 'streaming' | 'final' = 'streaming'
 ) {
   const mergedContent = currentContent + streamBuffer;
-  resetStreamBuffer();
+  streamBuffer = '';
+  clearScheduledFlush();
+  lastStreamFlushAt = Date.now();
   chatStore.updateLastAssistantMessage(mergedContent || nextContent, loading, error, renderMode);
   scrollToBottom();
   return mergedContent || nextContent;
+}
+
+function flushActiveAssistantBuffer(
+  loading = true,
+  error = false,
+  renderMode: 'streaming' | 'final' = 'streaming'
+) {
+  if (!activeStreamFlush) return '';
+  const nextContent = flushAssistantBuffer(
+    activeStreamFlush.getCurrentContent(),
+    activeStreamFlush.fallbackContent,
+    loading,
+    error,
+    renderMode
+  );
+  activeStreamFlush.setCurrentContent(nextContent);
+  activeStreamFlush.fallbackContent = nextContent;
+  return nextContent;
+}
+
+function runScheduledAssistantFlush() {
+  if (!activeStreamFlush) return;
+  flushActiveAssistantBuffer(true, false, 'streaming');
+}
+
+function scheduleTimerFlush(delay: number) {
+  if (streamFlushTimer !== null) return;
+  streamFlushTimer = window.setTimeout(() => {
+    streamFlushTimer = null;
+    if (streamRafId !== null) {
+      window.cancelAnimationFrame(streamRafId);
+      streamRafId = null;
+    }
+    runScheduledAssistantFlush();
+  }, delay);
+}
+
+function scheduleRafFlush() {
+  if (streamRafId !== null) return;
+  streamRafId = window.requestAnimationFrame(() => {
+    streamRafId = null;
+    const elapsed = Date.now() - lastStreamFlushAt;
+    if (elapsed >= STREAM_FLUSH_INTERVAL) {
+      if (streamFlushTimer !== null) {
+        window.clearTimeout(streamFlushTimer);
+        streamFlushTimer = null;
+      }
+      runScheduledAssistantFlush();
+      return;
+    }
+    if (streamFlushTimer !== null) {
+      window.clearTimeout(streamFlushTimer);
+      streamFlushTimer = null;
+    }
+    scheduleTimerFlush(STREAM_FLUSH_INTERVAL - elapsed);
+  });
 }
 
 function scheduleAssistantFlush(
@@ -146,11 +222,25 @@ function scheduleAssistantFlush(
   setCurrentContent: (nextContent: string) => void,
   fallbackContent = ''
 ) {
-  if (streamFlushTimer !== null) return;
+  activeStreamFlush = {
+    getCurrentContent,
+    setCurrentContent,
+    fallbackContent
+  };
 
-  streamFlushTimer = window.setTimeout(() => {
-    setCurrentContent(flushAssistantBuffer(getCurrentContent(), fallbackContent, true, false, 'streaming'));
-  }, STREAM_FLUSH_INTERVAL);
+  if (document.visibilityState === 'visible') {
+    scheduleRafFlush();
+    scheduleTimerFlush(BACKGROUND_FLUSH_INTERVAL);
+    return;
+  }
+
+  scheduleTimerFlush(BACKGROUND_FLUSH_INTERVAL);
+}
+
+function handleVisibilityChange() {
+  if (document.visibilityState === 'visible' && streamBuffer) {
+    flushActiveAssistantBuffer(true, false, 'streaming');
+  }
 }
 
 function formatTime(value: string) {
@@ -191,6 +281,7 @@ async function handleRegenerateMessage(prompt: string) {
 }
 
 function stopGenerate() {
+  flushActiveAssistantBuffer(false, false, 'final');
   abortController.value?.abort();
 }
 
@@ -201,6 +292,7 @@ async function runStream(prompt: string, historyMessages: AiConversationMessage[
   };
   const assistantId = crypto.randomUUID();
   resetStreamBuffer();
+  lastStreamFlushAt = 0;
 
   void chatStore.appendMessage({
     id: assistantId,
@@ -254,15 +346,16 @@ async function runStream(prompt: string, historyMessages: AiConversationMessage[
         }
 
         if (payload.type === 'done') {
-          content = flushAssistantBuffer(content, content, false, false, 'final');
+          content = flushActiveAssistantBuffer(false, false, 'final') || content;
           void chatStore.updateLastAssistantMessage(content, false, false, 'final', true);
           streaming.value = false;
           abortController.value = null;
+          resetStreamBuffer();
         }
       }
     });
   } catch (error) {
-    content = flushAssistantBuffer(content, content, true, false, 'streaming');
+    content = flushActiveAssistantBuffer(true, false, 'streaming') || content;
     if ((error as Error).name === 'AbortError') {
       void chatStore.updateLastAssistantMessage(content || t('ai.stopped'), false, false, 'final', true);
     } else {
@@ -310,9 +403,15 @@ watch(includeBusinessContext, (value) => {
 });
 
 onMounted(async () => {
+  document.addEventListener('visibilitychange', handleVisibilityChange);
   const { data } = await getAiPromptsApi();
   prompts.value = data;
   scrollToBottom();
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
+  resetStreamBuffer();
 });
 </script>
 

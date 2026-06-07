@@ -190,6 +190,18 @@ data: {"type":"chunk","content":"..."}
 data: {"type":"done"}
 ```
 
+Front-end streaming consumption uses two buffering layers:
+
+- Protocol buffer: `frontend/src/utils/sse.ts` reads the response body with a `ReadableStream` reader and `TextDecoder`, joins complete SSE events by `\n\n`, and parses each `data:` JSON payload.
+- Display buffer: the AI page stores parsed text chunks in `streamBuffer` so each token does not immediately trigger a Pinia update, Markdown parsing, and DOM rendering.
+
+Display-layer flush strategy:
+
+- When the page is visible: `requestAnimationFrame` aligns flushing with browser painting, while `STREAM_FLUSH_INTERVAL` keeps a minimum flush interval.
+- When the page is hidden: `setTimeout` acts as a background fallback so content does not stay in the buffer indefinitely when rAF is throttled or paused.
+- When the page becomes visible again: `visibilitychange` is monitored, and pending `streamBuffer` content is flushed immediately.
+- On `done`, errors, stop generation, and component unmount: the current buffer is force-flushed or scheduled work is cleared to avoid losing tail content or letting stale tasks update the page.
+
 ### 2. Markdown Rendering Security
 
 AI message rendering is centralized in `frontend/src/components/chat-message.vue`. Assistant responses are handled by render phase:
