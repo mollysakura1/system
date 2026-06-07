@@ -127,24 +127,89 @@ function downgradeIncompleteTables(value: string) {
 }
 
 function patchStreamingMarkdown(value: string) {
-  let patched = downgradeIncompleteTables(value);
+  const patched = downgradeIncompleteTables(value);
+  let inFence = false;
+  let inInlineCode = false;
+  let inStrong = false;
+  let inLinkText = false;
+  let inLinkHref = false;
 
-  const fenceCount = (patched.match(/```/g) || []).length;
-  if (fenceCount % 2 !== 0) {
-    patched += '\n```';
+  for (let index = 0; index < patched.length; index += 1) {
+    const current = patched[index];
+    const next = patched[index + 1];
+    const next2 = patched[index + 2];
+    const isEscaped = current === '\\';
+    const isFence = current === '`' && next === '`' && next2 === '`';
+    const isStrong = current === '*' && next === '*';
+
+    if (isEscaped) {
+      index += 1;
+      continue;
+    }
+
+    if (inFence) {
+      if (isFence) {
+        inFence = false;
+        index += 2;
+      }
+      continue;
+    }
+
+    if (inInlineCode) {
+      if (current === '`' && !isFence) {
+        inInlineCode = false;
+      }
+      continue;
+    }
+
+    if (inLinkHref) {
+      if (current === ')') {
+        inLinkHref = false;
+      }
+      continue;
+    }
+
+    if (inLinkText) {
+      if (current === ']') {
+        inLinkText = false;
+        if (next === '(') {
+          inLinkHref = true;
+          index += 1;
+        }
+      }
+      continue;
+    }
+
+    if (isFence) {
+      inFence = true;
+      index += 2;
+      continue;
+    }
+
+    if (current === '`') {
+      inInlineCode = true;
+      continue;
+    }
+
+    if (isStrong) {
+      inStrong = !inStrong;
+      index += 1;
+      continue;
+    }
+
+    if (current === '[') {
+      inLinkText = true;
+    }
   }
 
-  const inlineCodeCount = (patched.replaceAll('```', '').match(/`/g) || []).length;
-  if (inlineCodeCount % 2 !== 0) {
-    patched += '`';
-  }
+  let output = patched;
+  if (inLinkText) output += ']';
+  if (inLinkHref) output += ')';
+  if (inInlineCode) output += '`';
+  if (inStrong) output += '**';
+  if (inFence) output += '\n```';
 
-  const strongCount = (patched.match(/\*\*/g) || []).length;
-  if (strongCount % 2 !== 0) {
-    patched += '**';
-  }
-
-  return patched;
+  return output;
 }
 
 async function getMarkedRuntime(): Promise<MarkedRuntime> {

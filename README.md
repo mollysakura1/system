@@ -194,17 +194,30 @@ data: {"type":"done"}
 
 AI 消息渲染集中在 `frontend/src/components/chat-message.vue`。前端会将 assistant 回复按渲染阶段处理：
 
-- 流式阶段：先通过 `patchStreamingMarkdown()` 临时补全未闭合的代码块、行内代码和加粗标记，再使用 `marked` 渲染 Markdown。
+- 流式阶段：先通过 `patchStreamingMarkdown()` 对流式 Markdown 做轻量状态机扫描，临时补全未闭合的代码块、行内代码、加粗、链接文本和链接地址，再使用 `marked` 渲染 Markdown。
+- 状态机能力：逐字符追踪 `inFence`、`inInlineCode`、`inStrong`、`inLinkText`、`inLinkHref` 状态，跳过转义字符，并避免代码块中的 Markdown 符号误触发外部状态。
+- 表格保护：继续通过 `downgradeIncompleteTables()` 将疑似未输出完整的 Markdown 表格降级为普通文本，降低流式半截表格造成的布局和解析异常。
 - 最终阶段：使用 `marked` 渲染完整 Markdown，并通过 `highlight.js` 对代码块做高亮。
 - 写入 `v-html` 前：统一调用 `DOMPurify.sanitize()` 清洗 HTML，降低模型输出或 Markdown HTML 片段带来的 XSS 风险。
 - 用户消息：先进行 HTML 转义和换行转换，再经过 DOMPurify 清洗后渲染。
 
-渲染链路：
+流式渲染链路：
+
+```text
+message.content
+-> downgradeIncompleteTables()
+-> patchStreamingMarkdown() 状态机补齐
+-> marked.parse()
+-> DOMPurify.sanitize()
+-> v-html
+```
+
+最终渲染链路：
 
 ```text
 message.content
 -> marked.parse()
--> highlight.js（最终阶段）
+-> highlight.js
 -> DOMPurify.sanitize()
 -> v-html
 ```

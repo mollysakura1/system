@@ -194,17 +194,30 @@ data: {"type":"done"}
 
 AI message rendering is centralized in `frontend/src/components/chat-message.vue`. Assistant responses are handled by render phase:
 
-- Streaming phase: `patchStreamingMarkdown()` temporarily closes unfinished code fences, inline code, and bold markers before Markdown is rendered with `marked`.
+- Streaming phase: `patchStreamingMarkdown()` runs a lightweight state-machine scan over streaming Markdown, temporarily closing unfinished code fences, inline code, bold markers, link text, and link URLs before Markdown is rendered with `marked`.
+- State-machine behavior: it scans character by character, tracks `inFence`, `inInlineCode`, `inStrong`, `inLinkText`, and `inLinkHref`, skips escaped characters, and avoids treating Markdown symbols inside code fences as outer Markdown state changes.
+- Table protection: `downgradeIncompleteTables()` is still used to degrade likely incomplete streaming Markdown tables into plain text, reducing layout and parsing issues from half-written tables.
 - Final phase: complete Markdown is rendered with `marked`, and code blocks are highlighted with `highlight.js`.
 - Before writing to `v-html`: all generated HTML is passed through `DOMPurify.sanitize()` to reduce XSS risk from model output or embedded Markdown HTML.
 - User messages: content is HTML-escaped, line breaks are converted, and the result is also sanitized before rendering.
 
-Rendering pipeline:
+Streaming rendering pipeline:
+
+```text
+message.content
+-> downgradeIncompleteTables()
+-> patchStreamingMarkdown() state-machine patching
+-> marked.parse()
+-> DOMPurify.sanitize()
+-> v-html
+```
+
+Final rendering pipeline:
 
 ```text
 message.content
 -> marked.parse()
--> highlight.js (final phase)
+-> highlight.js
 -> DOMPurify.sanitize()
 -> v-html
 ```
